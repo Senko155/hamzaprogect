@@ -1,0 +1,166 @@
+.mission-screen {
+  position: relative;
+  z-index: 3;
+  min-height: 100dvh;
+  padding: 112px clamp(14px, 4vw, 58px) 24px;
+  color: #eef6ff;
+  direction: rtl;
+  overflow-x: hidden;
+  overflow-y: auto;
+  isolation: isolate;
+}
+.mission-screen:before {
+  content: "";
+  position: fixed;
+  z-index: -2;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(5, 9, 22, .16), rgba(5, 9, 22, .64));
+}
+.mission-screen.is-countdown {animation:missionLaunchShake .12s linear infinite}
+.mission-scene {
+  position: fixed;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 51% 73%, #315481 0%, #17284f 28%, #10142d 57%, #060913 100%);
+}
+.mission-scene canvas { width: 100%; height: 100%; display:block; touch-action:none; }
+.mission-scene .mission-canvas-fallback { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.mission-topline {
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  max-width:1440px; margin:0 auto 20px;
+}
+.mission-kicker, .mission-label, .mission-readout-label {
+  color:#8ba4c4; font:10px var(--app-font-mono); letter-spacing:.14em; direction:ltr;
+}
+.mission-kicker { display:flex; align-items:center; gap:10px; }
+.mission-kicker:before {content:""; width:24px; height:1px; background:#6ce4ff;}
+.mission-heading { margin:7px 0 0; font-size:clamp(22px,3vw,34px); line-height:1.15; font-weight:700; }
+.mission-tools { display:flex; gap:8px; align-items:center; }
+.mission-glass, .mission-panel {
+  border:1px solid rgba(134,206,255,.22);
+  background:linear-gradient(145deg,rgba(16,30,57,.78),rgba(8,14,32,.72));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 18px 55px rgba(1,5,20,.24);
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+}
+.mission-button {
+  display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  min-height:43px; padding:0 16px; color:#e7f4ff; font-weight:700; font-size:13px;
+  border:1px solid rgba(145,205,255,.25); border-radius:9px;
+  background:rgba(16,27,51,.72); cursor:pointer; transition:transform .2s,border-color .2s,background .2s;
+}
+.mission-button:hover:not(:disabled) {transform:translateY(-2px); border-color:#72ddff; background:rgba(31,59,87,.84);}
+.mission-button:disabled {opacity:.45; cursor:not-allowed}
+.mission-button:focus-visible, .mission-input:focus-visible {outline:2px solid #72e4ff; outline-offset:3px}
+.mission-button.primary {
+  min-height:56px; padding:0 24px; border:1px solid #a3efff;
+  color:#061623; background:linear-gradient(110deg,#63dbf4,#b3eaff);
+  box-shadow:0 10px 38px rgba(39,194,238,.19); font-size:15px;
+}
+.mission-button.primary:hover:not(:disabled) {background:linear-gradient(110deg,#9beaff,#d1f2ff)}
+.mission-button.purple {border-color:rgba(186,158,255,.5); color:#e6dcff}
+.mission-button.ghost {background:rgba(10,16,35,.58)}
+.mission-body { max-width:1440px; margin:0 auto; display:grid; grid-template-columns:minmax(240px,310px) minmax(0,1fr); gap:16px; align-items:stretch; }
+.mission-side {display:flex; flex-direction:column; gap:12px}
+.mission-panel { border-radius:14px; padding:18px; }
+.mission-stage-name {display:flex; align-items:center; gap:10px; margin:0 0 8px; font-size:17px; font-weight:700}
+.mission-stage-name svg {color:#79e4ff}
+.mission-copy {color:#afc2db; font-size:14px; line-height:1.75; margin:0}
+.mission-panel .mission-button {width:100%; margin-top:16px}
+.mission-readouts {display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:13px}
+.mission-readout {padding:10px 11px; border:1px solid rgba(142,191,233,.12); border-radius:9px; background:rgba(7,14,31,.37)}
+.mission-readout-label {font-size:8px; display:block; margin-bottom:6px}
+.mission-readout-value {font:14px var(--app-font-mono); direction:ltr; color:#e3f4ff}
+.mission-progress {height:4px; overflow:hidden; border-radius:9px; margin-top:12px; background:#24314c}
+.mission-progress > i {display:block; height:100%; background:linear-gradient(90deg,#72e3ff,#ad9aff); border-radius:9px; transition:width .4s}
+.mission-view {position:relative; min-height:min(62vh,620px); border-radius:16px; overflow:hidden; touch-action:none; background:linear-gradient(145deg,rgba(16,30,57,.57),rgba(8,14,32,.48)); backdrop-filter:blur(1px); -webkit-backdrop-filter:blur(1px)}
+.mission-fallback-active .mission-view {background:linear-gradient(145deg,rgba(16,30,57,.42),rgba(8,14,32,.34))}
+.mission-view:after {content:""; pointer-events:none; position:absolute; inset:0; border:1px solid rgba(155,211,255,.2); border-radius:inherit; box-shadow:inset 0 0 90px rgba(6,11,27,.22)}
+.mission-cockpit {position:absolute;z-index:1;inset:5%;border:18px solid rgba(7,13,25,.75);border-radius:clamp(28px,8vw,110px);box-shadow:inset 0 0 0 2px rgba(166,211,239,.2),inset 0 0 70px rgba(3,8,19,.46),0 0 0 2px rgba(3,8,19,.28);pointer-events:none}
+.mission-cockpit:before {content:"";position:absolute;inset:12% 44%;border-left:1px solid rgba(191,220,240,.16);border-right:1px solid rgba(191,220,240,.16)}
+.mission-cockpit.is-vibrating {animation:missionCockpitVibrate .075s linear infinite}
+.mission-view-meta {position:absolute; z-index:1; top:15px; left:15px; display:flex; flex-wrap:wrap; max-width:calc(100% - 30px); gap:7px; direction:ltr}
+.mission-chip {padding:8px 11px; border:1px solid rgba(172,215,255,.18); border-radius:99px; background:rgba(9,17,37,.66); color:#b9cde6; font:9px var(--app-font-mono); backdrop-filter:blur(12px)}
+.camera-help {font-family:var(--app-font-sans);letter-spacing:0}
+.mission-hud {position:absolute; z-index:1; inset:auto 16px 16px; display:flex; justify-content:space-between; align-items:flex-end; gap:14px; pointer-events:none}
+.mission-hud-note {max-width:390px; padding:12px 15px; border-right:2px solid #6ce4ff; border-radius:4px 10px 10px 4px; background:rgba(8,15,32,.78); color:#e8f4ff; font-size:14px; line-height:1.6}
+.mission-hud-note small {display:block; color:#94aac6; font:9px var(--app-font-mono); direction:ltr; margin-bottom:4px}
+.mission-camera {pointer-events:auto; display:flex; gap:5px; padding:4px; border:1px solid rgba(173,213,255,.21); border-radius:10px; background:rgba(8,15,32,.76); direction:ltr}
+.mission-camera button {min-height:34px; padding:0 10px; border:0; border-radius:7px; color:#aebed5; background:transparent; cursor:pointer; font:10px var(--app-font-mono)}
+.mission-camera button[aria-pressed="true"] {background:#25415f; color:#a8edff}
+.mission-stage-controls {display:flex; gap:8px; flex-wrap:wrap}
+.mission-countdown {font:clamp(80px,17vw,180px) var(--app-font-mono); color:#e6faff; text-shadow:0 0 55px rgba(89,217,255,.65); text-align:center; line-height:1}
+.mission-loading {position:absolute; inset:0; display:grid; place-content:center; gap:12px; text-align:center; color:#a9bed9; background:#090e1d; font-size:13px; z-index:4}
+.mission-loading-mark {width:36px;height:36px;margin:auto;border-radius:50%;border:2px solid rgba(107,223,255,.2);border-top-color:#73e3ff;animation:missionSpin .8s linear infinite}
+.mission-form {display:flex; gap:8px; margin-top:13px}
+.mission-input {flex:1; min-width:0; min-height:44px; border:1px solid rgba(145,205,255,.28); border-radius:8px; background:rgba(5,12,27,.7); color:#f4f7ff; padding:0 12px; font:14px var(--app-font-sans)}
+.mission-form .mission-button {width:auto; margin:0}
+.mission-success {position:absolute; z-index:2; inset:0; display:grid; place-items:center; padding:20px; background:rgba(5,10,25,.48); backdrop-filter:blur(5px)}
+.mission-success-card {width:min(560px,100%); text-align:center; padding:clamp(22px,4vw,42px); border-radius:17px}
+.mission-success-card h2 {font-size:clamp(30px,5vw,48px); margin:10px 0}
+.mission-success-card p {color:#b1c6df; line-height:1.8; margin:0}
+.mission-success-actions {display:flex; justify-content:center; flex-wrap:wrap; gap:9px; margin-top:22px}
+.mission-touch {display:none}
+.mission-stage-status {font:9px var(--app-font-mono); color:#8fa6c4; direction:ltr}
+.mission-center-action,.mission-center-countdown {
+  position:absolute; z-index:2; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:13px; padding:20px; text-align:center; pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(4,10,25,.34),transparent 65%);
+}
+.mission-center-action .mission-button {width:min(370px,100%); min-height:64px; pointer-events:auto; box-shadow:0 0 50px rgba(94,218,255,.3)}
+.mission-center-action>span,.mission-center-countdown>span,.mission-center-countdown>small {color:#c0d3e8;font:10px var(--app-font-mono);letter-spacing:.13em}
+.mission-center-countdown strong {font:clamp(100px,20vw,220px) var(--app-font-mono);line-height:.95;color:#e8fbff;text-shadow:0 0 70px rgba(90,219,255,.78)}
+.mission-orbit-hold {margin:14px 0 0;color:#b7cce6;text-align:center;font-size:12px;line-height:1.7}
+.mission-timeline {display:grid;gap:7px;margin-top:13px}
+.mission-timeline-item {display:grid;grid-template-columns:9px 1fr auto;align-items:center;gap:8px;color:#7188a7;font-size:11px;line-height:1.4}
+.mission-timeline-item i {width:6px;height:6px;border-radius:50%;background:#344562}
+.mission-timeline-item b {font:9px var(--app-font-mono);color:#7489a6}
+.mission-timeline-item.done {color:#b2cadf}
+.mission-timeline-item.done i {background:#6ddff7;box-shadow:0 0 10px #59d7ed}
+.mission-timeline-item.current span {color:#e2f8ff}
+@keyframes missionSpin {to{transform:rotate(360deg)}}
+@keyframes missionLaunchShake {0%,100%{transform:translate3d(0,0,0)}25%{transform:translate3d(-1px,1px,0)}75%{transform:translate3d(1px,-1px,0)}}
+@keyframes missionCockpitVibrate {0%,100%{transform:translate(0,0)}50%{transform:translate(.7px,-.45px)}}
+@media(max-width:850px) {
+ .mission-screen{padding:116px 16px 18px}
+ .mission-body{grid-template-columns:1fr; gap:10px}
+ .mission-side{display:grid; grid-template-columns:1fr 1fr}
+ .mission-panel:first-child{grid-column:1/-1}
+ .mission-view{min-height:52vh; min-height:min(54dvh,520px); order:-1}
+ .mission-side{display:contents}
+ .mission-panel{padding:14px}
+ .mission-side>.mission-panel:first-child{grid-row:auto}
+ .mission-touch{display:flex; gap:9px; position:absolute; z-index:3; bottom:83px; left:50%; transform:translateX(-50%); direction:ltr}
+ .mission-touch button{width:48px;height:48px;border-radius:50%;touch-action:none}
+}
+@media(max-width:560px) {
+  .mission-screen{padding:126px 12px 20px}
+ .mission-topline{align-items:flex-start; margin-bottom:12px}
+ .mission-heading{font-size:21px}
+ .mission-kicker{font-size:8px}
+ .mission-tools{gap:5px}
+ .mission-tools .mission-button{width:42px; min-width:42px; padding:0; font-size:0}
+ .mission-tools .mission-button svg{flex:none}
+ .mission-view{min-height:48dvh; border-radius:12px}
+  .mission-center-action .mission-button{font-size:13px;min-height:56px;padding:0 14px}
+ .mission-hud{inset:auto 9px 9px; align-items:flex-end}
+ .mission-hud-note{font-size:12px; padding:9px 10px; max-width:65%}
+ .mission-chip{font-size:8px; padding:7px 8px}
+  .camera-help{font-size:8px}
+ .mission-side{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+ .mission-panel{padding:12px}
+ .mission-panel:first-child{grid-column:1/-1}
+ .mission-panel .mission-button{margin-top:11px; min-height:40px; padding:0 10px; font-size:12px}
+ .mission-copy{font-size:12px}
+ .mission-readout{padding:8px}
+ .mission-readout-value{font-size:12px}
+ .mission-form{flex-direction:column}
+ .mission-form .mission-button{width:100%}
+}
+@media(prefers-reduced-motion:reduce) {
+ .mission-loading-mark{animation:none}
+ .mission-screen.is-countdown{animation:none}
+  .mission-cockpit.is-vibrating{animation:none}
+ .mission-button,.mission-progress>i{transition:none}
+}

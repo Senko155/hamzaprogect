@@ -1,0 +1,1 @@
+- [WebGL preview limitation](webgl-preview-limitation.md) — the preview browser lacks WebGL; keep and test 2D fallbacks for 3D scenes.

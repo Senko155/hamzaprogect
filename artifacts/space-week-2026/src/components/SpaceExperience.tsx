@@ -1,0 +1,202 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'wouter';
+import { ArrowUpLeft, Calculator, Home, Orbit, Rocket, Volume2, VolumeX } from 'lucide-react';
+import OrbitalStage from './OrbitalStage';
+import SciencePage from '../pages/SciencePage';
+import MathPage from '../pages/MathPage';
+import Simulation from './simulation/Simulation';
+import LogoFooter from './LogoFooter';
+
+type Section = 'simulation' | 'science' | 'math';
+const sections: { id: Section; label: string; description: string; icon: typeof Orbit }[] = [
+  { id: 'simulation', label: 'المحاكاة', description: 'انطلق برحلة صاروخية إلى القمر', icon: Rocket },
+  { id: 'science', label: 'التوعية العلمية', description: 'استكشف النظام الشمسي والعلوم بالفيديو', icon: Orbit },
+  { id: 'math', label: 'الرياضيات', description: 'اكتشف رياضيات الفضاء عبر الفيديو', icon: Calculator },
+];
+
+function useUtcClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+function useRumble() {
+  const contextRef = useRef<AudioContext | null>(null);
+  const nodesRef = useRef<AudioNode[]>([]);
+  const timerRef = useRef<number | undefined>(undefined);
+  const cleanup = () => {
+    nodesRef.current.forEach((node) => { try { node.disconnect(); } catch { /* already disconnected */ } });
+    nodesRef.current = [];
+    if (timerRef.current) window.clearTimeout(timerRef.current);
+    timerRef.current = undefined;
+  };
+  const play = (muted: boolean) => {
+    if (muted) return;
+    try {
+      const context = contextRef.current ?? new AudioContext();
+      contextRef.current = context;
+      if (context.state === 'suspended') void context.resume();
+      cleanup();
+      const master = context.createGain();
+      master.gain.setValueAtTime(.0001, context.currentTime);
+      master.gain.exponentialRampToValueAtTime(.19, context.currentTime + .15);
+      master.gain.exponentialRampToValueAtTime(.0001, context.currentTime + 2.1);
+      master.connect(context.destination);
+      const oscillator = context.createOscillator();
+      oscillator.type = 'sawtooth';
+      oscillator.frequency.setValueAtTime(72, context.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(28, context.currentTime + 1.8);
+      oscillator.connect(master);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 2.15);
+      const buffer = context.createBuffer(1, context.sampleRate * 2, context.sampleRate);
+      const channel = buffer.getChannelData(0);
+      for (let i = 0; i < channel.length; i++) channel[i] = (Math.random() * 2 - 1) * (1 - i / channel.length);
+      const noise = context.createBufferSource();
+      noise.buffer = buffer;
+      const filter = context.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.value = 180;
+      const noiseGain = context.createGain();
+      noiseGain.gain.setValueAtTime(.06, context.currentTime);
+      noiseGain.gain.exponentialRampToValueAtTime(.0001, context.currentTime + 1.6);
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(master);
+      noise.start();
+      nodesRef.current = [master, oscillator, noise, filter, noiseGain];
+      timerRef.current = window.setTimeout(cleanup, 2400);
+    } catch {
+      // Audio is an enhancement; the launch remains available if the browser blocks it.
+    }
+  };
+  useEffect(() => () => {
+    cleanup();
+    if (contextRef.current) void contextRef.current.close();
+  }, []);
+  return play;
+}
+
+export default function SpaceExperience() {
+  const [location, setLocation] = useLocation();
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [muted, setMuted] = useState(() => {
+    try { return window.localStorage.getItem('space-week-muted') === 'true'; } catch { return false; }
+  });
+  const [launching, setLaunching] = useState<Section | null>(null);
+  const playRumble = useRumble();
+  const utc = useUtcClock();
+  const activeSection = location.match(/^\/(simulation|science|math)$/)?.[1] as Section | undefined;
+  useEffect(() => {
+    const timer = window.setTimeout(() => setInitialLoading(false), 720);
+    return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem('space-week-muted', String(muted)); } catch { /* Storage is optional. */ }
+  }, [muted]);
+  const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const launchTo = (path: string, section: Section) => {
+    if (launching) return;
+    if (reduceMotion) { setLocation(path); return; }
+    setLaunching(section);
+    playRumble(muted);
+    window.setTimeout(() => setLocation(path), 1750);
+    window.setTimeout(() => setLaunching(null), 2200);
+  };
+  const transitionHome = () => {
+    if (!activeSection || launching) return;
+    if (reduceMotion) { setLocation('/'); return; }
+    setLaunching(activeSection);
+    window.setTimeout(() => setLocation('/'), 360);
+    window.setTimeout(() => setLaunching(null), 920);
+  };
+  const toggleMute = () => setMuted((value) => !value);
+  return (
+    <div className="cosmos-app" dir="rtl" data-testid="space-week-app">
+      {location !== '/simulation' && location !== '/science' && location !== '/math' && <OrbitalStage />}
+      <div className="space-vignette" aria-hidden="true" />
+      {!activeSection ? (
+        <>
+          <header className="topbar" data-testid="header-home">
+            <Link href="/" className="brand-mark" aria-label="أسبوع الفضاء العالمي، الصفحة الرئيسية" data-testid="link-brand-home">
+              <span className="brand-emblem"><Orbit size={21} strokeWidth={1.5} /></span>
+              <span className="brand-copy">أسبوع الفضاء العالمي<small>WORLD SPACE WEEK · 2026</small></span>
+            </Link>
+            <div className="top-actions">
+              <span className="clock-readout" dir="ltr" data-testid="text-live-utc-time">Live positions: {utc} UTC</span>
+              <button className="icon-control" type="button" onClick={toggleMute} aria-label={muted ? 'تشغيل الصوت' : 'كتم الصوت'} aria-pressed={!muted} data-testid="button-toggle-mute">
+                {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+                <span>{muted ? 'صامت' : 'الصوت يعمل'}</span>
+              </button>
+            </div>
+          </header>
+          <main className="home-content" data-testid="page-home">
+            <section className="hero-copy" aria-labelledby="home-title">
+              <div className="eyebrow" data-testid="label-event-kicker">WORLD SPACE WEEK · 2026</div>
+              <h1 className="hero-title" id="home-title" data-testid="heading-home">أسبوع الفضاء <span className="hero-title-second-line">العالمي <bdi>2026</bdi></span></h1>
+              <p className="hero-subtitle" data-testid="text-home-subtitle">4 – 10 أكتوبر</p>
+              <div className="section-grid" role="group" aria-label="أقسام أسبوع الفضاء" data-testid="nav-sections">
+                {sections.map(({ id, label, description, icon: Icon }, index) => (
+                  <button
+                    className={`section-card${launching === id ? ' is-launching' : ''}`}
+                    type="button"
+                    key={id}
+                    onClick={() => launchTo(`/${id}`, id)}
+                    disabled={launching !== null}
+                    aria-label={`${label}: ${description}`}
+                    data-testid={`button-open-${id}`}
+                  >
+                    <span className="section-card-index" dir="ltr">0{index + 1} / SPACE WEEK</span>
+                    <span className="section-card-icon"><Icon size={25} strokeWidth={1.55} /></span>
+                    <span className="section-card-title">{label}</span>
+                    <span className="section-card-description">{description}</span>
+                    <span className="section-card-link">اكتشف القسم <ArrowUpLeft size={15} /></span>
+                    <span className="rocket-flare" aria-hidden="true" />
+                    <span className="rocket-smoke" aria-hidden="true" />
+                    {Array.from({ length: 8 }, (_, particle) => (
+                      <i className="launch-spark" data-particle={particle + 1} key={particle} aria-hidden="true" />
+                    ))}
+                  </button>
+                ))}
+              </div>
+              <div className="hero-footnote" data-testid="text-home-footnote"><span className="live-dot" />مدارات الكواكب محسوبة وفق تاريخ اليوم</div>
+            </section>
+          </main>
+          <div className="orbit-note" aria-label="تصور بصري للمدارات" data-testid="label-orbit-scale">SOLAR SYSTEM · LIVE ORBITS</div>
+          <LogoFooter />
+        </>
+      ) : (
+        <>
+          <header className="topbar section-topbar" data-testid="header-section">
+            <Link href="/" className="brand-mark" onClick={(event) => { event.preventDefault(); transitionHome(); }} data-testid="link-section-brand-home">
+              <span className="brand-emblem"><Orbit size={21} strokeWidth={1.5} /></span>
+              <span className="brand-copy">أسبوع الفضاء العالمي<small>WORLD SPACE WEEK · 2026</small></span>
+            </Link>
+            <div className="top-actions">
+              <span className="clock-readout" dir="ltr" data-testid="text-live-utc-time">Live positions: {utc} UTC</span>
+              <button className="icon-control" type="button" onClick={transitionHome} aria-label="العودة إلى الصفحة الرئيسية" data-testid="button-section-home">
+                <Home size={16} /><span>الرئيسية</span>
+              </button>
+              <button className="icon-control" type="button" onClick={toggleMute} aria-label={muted ? 'تشغيل الصوت' : 'كتم الصوت'} aria-pressed={!muted} data-testid="button-toggle-mute">
+                {muted ? <VolumeX size={17} /> : <Volume2 size={17} />}
+                <span>{muted ? 'صامت' : 'الصوت يعمل'}</span>
+              </button>
+            </div>
+          </header>
+          {activeSection === 'simulation'
+            ? <Simulation muted={muted} onToggleMute={toggleMute} onBackHome={transitionHome} />
+            : activeSection === 'science' ? <SciencePage /> : <MathPage onBackHome={transitionHome} />}
+        </>
+      )}
+      <div className={`launch-overlay${launching ? ' active' : ''}`} aria-hidden="true" />
+      <div className={`initial-loader${initialLoading ? '' : ' is-hidden'}`} aria-hidden={!initialLoading} data-testid="initial-loader">
+        <Rocket className="initial-loader-rocket" size={24} strokeWidth={1.4} />
+        <span>PREPARING FLIGHT SYSTEMS</span>
+      </div>
+    </div>
+  );
+}

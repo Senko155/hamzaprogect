@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Space Week 2026"
+description = "An interactive space-week education site featuring a real-time Three.js lunar mission simulation, a solar system explorer, and mathematics learning."
+version = "1.0.0"
+id = "artifacts/space-week-2026"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22282
+
+[services.development]
+run = "pnpm --filter @workspace/space-week-2026 run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/space-week-2026", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/space-week-2026/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22282"
+BASE_PATH = "/"
