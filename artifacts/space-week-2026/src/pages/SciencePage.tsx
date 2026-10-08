@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { ArrowDownLeft, CirclePlay, RotateCcw, Sparkles } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
 import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor } from '@/components/solar-system-model';
-import LogoFooter from '../components/LogoFooter';
 
 type Body = { id: string; name: string; color: number; size: number };
 const videos = (window as Window & { SCIENCE_WEEK_VIDEOS?: Record<string, string> }).SCIENCE_WEEK_VIDEOS ?? {};
@@ -330,21 +329,6 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
           context.lineWidth = Math.max(1.5, radius * .24);
           context.stroke();
           context.restore();
-        } else if (spec.id === 'uranus') {
-          context.save();
-          context.translate(point.x, point.y);
-          context.rotate(.82 + angle);
-          context.beginPath();
-          context.ellipse(0, 0, radius * 2.35, radius * .58, 0, 0, Math.PI * 2);
-          context.strokeStyle = 'rgba(167, 199, 211, .6)';
-          context.lineWidth = Math.max(1, radius * .075);
-          context.stroke();
-          context.beginPath();
-          context.ellipse(0, 0, radius * 1.82, radius * .45, 0, 0, Math.PI * 2);
-          context.strokeStyle = 'rgba(103, 133, 149, .52)';
-          context.lineWidth = Math.max(1, radius * .045);
-          context.stroke();
-          context.restore();
         }
         const color = `#${spec.color.toString(16).padStart(6, '0')}`;
         const glow = context.createRadialGradient(point.x - radius * .35, point.y - radius * .35, 1, point.x, point.y, radius * 2.7);
@@ -482,12 +466,6 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
     scene.add(sunHalo);
 
     const saturnRingGeometry = new THREE.RingGeometry(1.18, 1.62, 48);
-    const uranusRingGeometries = [
-      new THREE.RingGeometry(1.43,1.58,48),
-      new THREE.RingGeometry(1.67,1.78,48),
-      new THREE.RingGeometry(1.9,2.06,48),
-      new THREE.RingGeometry(2.2,2.34,48),
-    ];
     planets.forEach((spec) => {
       const points: THREE.Vector3[] = [];
       for (let i = 0; i <= 128; i++) points.push(orbitalPoint(spec, i / 128 * Math.PI * 2, 0));
@@ -513,20 +491,6 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
         ring.scale.set(spec.size, spec.size, 1);
         ring.rotation.x = Math.PI * .31;
         planet.add(ring);
-      } else if (spec.id === 'uranus') {
-        planet.rotation.z=THREE.MathUtils.degToRad(98);
-        const ringMaterials=[
-          new THREE.MeshBasicMaterial({color:0xb6cbd4,transparent:true,opacity:.48,side:THREE.DoubleSide,depthWrite:false}),
-          new THREE.MeshBasicMaterial({color:0x728b9a,transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false}),
-          new THREE.MeshBasicMaterial({color:0xa9bec8,transparent:true,opacity:.39,side:THREE.DoubleSide,depthWrite:false}),
-          new THREE.MeshBasicMaterial({color:0x7e98a5,transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false}),
-        ];
-        uranusRingGeometries.forEach((geometry,index)=>{
-          const ring=new THREE.Mesh(geometry,ringMaterials[index]);
-          ring.scale.set(spec.size,spec.size,1);
-          ring.rotation.x=-Math.PI/2;
-          planet.add(ring);
-        });
       }
       scene.add(planet);
       meshes.set(spec.id, planet);
@@ -723,7 +687,6 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
         }
       });
       saturnRingGeometry.dispose();
-      uranusRingGeometries.forEach((geometry)=>geometry.dispose());
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -803,7 +766,6 @@ export default function SciencePage() {
         </section>
       )}
       <div className="science-scale" dir="ltr" data-testid="science-model-caption">SOLAR SYSTEM · LIVE MODEL</div>
-      <LogoFooter />
     </main>
   );
 }

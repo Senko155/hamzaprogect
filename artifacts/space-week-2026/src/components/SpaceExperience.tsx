@@ -5,7 +5,6 @@ import OrbitalStage from './OrbitalStage';
 import SciencePage from '../pages/SciencePage';
 import MathPage from '../pages/MathPage';
 import Simulation from './simulation/Simulation';
-import LogoFooter from './LogoFooter';
 
 type Section = 'simulation' | 'science' | 'math';
 const sections: { id: Section; label: string; description: string; icon: typeof Orbit }[] = [
@@ -167,7 +166,6 @@ export default function SpaceExperience() {
             </section>
           </main>
           <div className="orbit-note" aria-label="تصور بصري للمدارات" data-testid="label-orbit-scale">SOLAR SYSTEM · LIVE ORBITS</div>
-          <LogoFooter />
         </>
       ) : (
         <>

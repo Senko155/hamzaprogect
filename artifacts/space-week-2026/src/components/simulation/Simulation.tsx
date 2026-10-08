@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, ArrowDown, ArrowUp, Flag, Gauge, Home, Pause, Play, Radio, RotateCcw, Rocket, Settings2, Zap } from 'lucide-react';
-import MissionScene, { detectLowEndDevice, type MissionPhase, type MissionQuality } from './MissionScene';
-import LogoFooter from '../LogoFooter';
+import { Activity, ArrowDown, ArrowUp, Flag, Home, Pause, Play, Radio, RotateCcw, Rocket, Zap } from 'lucide-react';
+import MissionScene, { type MissionPhase } from './MissionScene';
 import './simulation.css';
 
 type Props = { muted: boolean; onToggleMute: () => void; onBackHome: () => void };
@@ -91,11 +90,6 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
   const [paused,setPaused]=useState(false);
   const [loaded,setLoaded]=useState(false);
   const [firstPerson,setFirstPerson]=useState(false);
-  const [quality,setQuality]=useState<MissionQuality>(()=>detectLowEndDevice()?'low':'medium');
-  const [showFps,setShowFps]=useState(false);
-  const fpsRef=useRef<HTMLDivElement>(null);
-  const [startPanelLeaving,setStartPanelLeaving]=useState(false);
-  const startPanelTimerRef=useRef<number|null>(null);
   const [tilt,setTilt]=useState(0);
   const [throttle,setThrottle]=useState(.68);
   const [assisted,setAssisted]=useState(true);
@@ -108,21 +102,10 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
   const audio=useMissionAudio(muted);
   const phaseRef=useRef(phase);phaseRef.current=phase;
 
-  useEffect(()=>()=>{if(startPanelTimerRef.current!==null)window.clearTimeout(startPanelTimerRef.current);},[]);
-
   const begin=(next:MissionPhase)=>{
     setPhase(next);setPhaseSeconds(0);setPaused(false);
   };
-  const startLaunch=()=>{
-    if(startPanelTimerRef.current!==null)return;
-    setStartPanelLeaving(true);
-    startPanelTimerRef.current=window.setTimeout(()=>{
-      startPanelTimerRef.current=null;setStartPanelLeaving(false);begin('countdown');
-    },230);
-  };
   const restart=()=>{
-    if(startPanelTimerRef.current!==null){window.clearTimeout(startPanelTimerRef.current);startPanelTimerRef.current=null;}
-    setStartPanelLeaving(false);
     audio.stop();setPhase('ready');setPhaseSeconds(0);setMissionSeconds(0);setPaused(false);
     setFirstPerson(false);setTilt(0);setThrottle(.68);setAssisted(true);setWalked(0);setJumpStarted(0);
     setFlagForm(false);setName('');setPlantedName('');setRadio('');
@@ -161,13 +144,6 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
     document.addEventListener('visibilitychange',onVisibility);
     return()=>document.removeEventListener('visibilitychange',onVisibility);
   },[]);
-
-  useEffect(()=>{
-    const app=document.querySelector('.cosmos-app');
-    if(!app)return;
-    app.classList.toggle('simulation-countdown',phase==='countdown');
-    return()=>app.classList.remove('simulation-countdown');
-  },[phase]);
 
   useEffect(()=>{
     if(phase!=='countdown')return;
@@ -241,24 +217,13 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
     finish:`وصل ${plantedName||'رائد الفضاء'} إلى سطح القمر وأكمل المهمة بنجاح.`,
   };
   return (
-    <main className={`mission-screen${phase==='countdown'?' is-countdown':''}${phase==='countdown'&&phaseSeconds>=2&&!paused?' is-ignited':''}`} dir="rtl" data-phase={phase} data-testid="page-simulation">
-      <MissionScene phase={phase} phaseSeconds={phaseSeconds} missionSeconds={missionSeconds} firstPerson={firstPerson} paused={paused} tilt={tilt} throttle={throttle} walking={walked} jumpStarted={jumpStarted} flagName={plantedName} quality={quality} showFps={showFps} fpsRef={fpsRef} onLoaded={()=>setLoaded(true)} />
+    <main className={`mission-screen${phase==='countdown'&&phaseSeconds>=2&&!paused?' is-countdown':''}`} dir="rtl" data-testid="page-simulation">
+      <MissionScene phase={phase} phaseSeconds={phaseSeconds} missionSeconds={missionSeconds} firstPerson={firstPerson} paused={paused} tilt={tilt} throttle={throttle} walking={walked} jumpStarted={jumpStarted} flagName={plantedName} onLoaded={()=>setLoaded(true)} />
       {!loaded&&<div className="mission-loading" role="status" data-testid="status-simulation-loading"><span className="mission-loading-mark"/><span>تهيئة مركبة المهمة ثلاثية الأبعاد…</span></div>}
       <div className="mission-topline">
         <div><div className="mission-kicker">WORLD SPACE WEEK · LUNAR MISSION 2026</div><h1 className="mission-heading">رحلة أبولو إلى القمر</h1></div>
         <div className="mission-tools">
           {phase!=='ready'&&phase!=='finish'&&<button className="mission-button" type="button" onClick={()=>setPaused(p=>!p)} aria-pressed={paused} data-testid="button-simulation-pause">{paused?<Play size={16}/>:<Pause size={16}/>}<span>{paused?'استئناف':'إيقاف مؤقت'}</span></button>}
-          {phase!=='finish'&&<details className="mission-settings">
-            <summary className="mission-button" aria-label="إعدادات المحاكاة" data-testid="button-simulation-settings"><Settings2 size={15}/><span>الإعدادات</span></summary>
-            <div className="mission-settings-popover">
-              <label htmlFor="mission-quality"><span>جودة المشهد</span>
-                <select id="mission-quality" value={quality} onChange={event=>setQuality(event.target.value as MissionQuality)} data-testid="select-simulation-quality">
-                  <option value="low">منخفضة · Low</option><option value="medium">متوسطة · Medium</option><option value="high">عالية · High</option>
-                </select>
-              </label>
-              <button className="mission-settings-fps" type="button" onClick={()=>setShowFps(value=>!value)} aria-pressed={showFps} data-testid="button-toggle-fps"><Gauge size={14}/><span>{showFps?'إخفاء FPS':'عرض FPS'}</span></button>
-            </div>
-          </details>}
         </div>
       </div>
       <div className="mission-body">
@@ -320,14 +285,13 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
           {radio&&<section className="mission-panel" role="status" data-testid="text-mission-radio"><div className="mission-kicker"><Radio size={13}/> MISSION CONTROL</div><p className="mission-copy" style={{marginTop:8}}>{radio}</p></section>}
         </aside>
         <section className="mission-view mission-glass" aria-label="مشهد الرحلة الفضائية">
-          {phase==='ready'&&<div className={`mission-center-action${startPanelLeaving?' is-dismissing':''}`} aria-hidden={startPanelLeaving}>
-            <button className="mission-button primary" type="button" onClick={startLaunch} disabled={startPanelLeaving} data-testid="button-start-countdown"><Rocket size={19}/>اضغط لبدء العد التنازلي</button>
+          {phase==='ready'&&<div className="mission-center-action">
+            <button className="mission-button primary" type="button" onClick={()=>begin('countdown')} data-testid="button-start-countdown"><Rocket size={19}/>اضغط لبدء العد التنازلي</button>
             <span>مركز التحكم · جميع الأنظمة جاهزة</span>
           </div>}
           {phase==='countdown'&&<div className="mission-center-countdown" aria-live="assertive" data-testid="text-countdown">
-            <strong>{Math.max(0,countdown)}</strong>
+            <span>العدّ التنازلي للإقلاع</span><strong>{Math.max(0,countdown)}</strong><small>T MINUS</small>
           </div>}
-          <div className="mission-fps-indicator" ref={fpsRef} hidden={!showFps} aria-label="معدل الإطارات"/>
            {firstPerson&&<div className={`mission-cockpit${phase==='countdown'||phase==='ascent'?' is-vibrating':''}`} aria-hidden="true"/>}
             <div className="mission-view-meta"><span className="mission-chip">{phaseLabels[phase].toUpperCase()}</span><span className="mission-chip">{paused?'PAUSED':'LIVE TELEMETRY'}</span>{!firstPerson&&<span className="mission-chip camera-help" dir="rtl">اسحب للتدوير · قرّب إصبعين للتكبير</span>}</div>
           <div className="mission-hud">
@@ -360,7 +324,6 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
           </div>}
         </section>
       </div>
-      {phase==='finish'&&<LogoFooter />}
     </main>
   );
 }
