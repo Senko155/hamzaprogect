@@ -164,3 +164,235 @@
   .mission-cockpit.is-vibrating{animation:none}
  .mission-button,.mission-progress>i{transition:none}
 }
+
+.mission-settings-toggle { min-width: 43px; padding-inline: 12px; }
+.mission-settings {
+  position: absolute;
+  z-index: 8;
+  top: 70px;
+  left: clamp(14px, 4vw, 58px);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px 16px;
+  min-width: 230px;
+  padding: 14px;
+  border: 1px solid rgba(134,206,255,.25);
+  border-radius: 10px;
+  background: rgba(8,14,32,.94);
+  color: #dcecff;
+  font-size: 12px;
+  box-shadow: 0 12px 36px rgba(1,5,20,.35);
+}
+.mission-select {
+  min-height: 34px;
+  min-width: 116px;
+  padding: 0 9px;
+  border: 1px solid rgba(145,205,255,.28);
+  border-radius: 7px;
+  background: #101b30;
+  color: #eef6ff;
+}
+.mission-fps-toggle { display:flex; align-items:center; gap:8px; grid-column:1/-1; }
+.mission-fps-toggle input { accent-color:#73dff5; }
+.mission-atmosphere-pass {
+  position:absolute;
+  z-index:2;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(180deg,rgba(245,250,255,.7),rgba(234,243,255,.18) 38%,rgba(255,255,255,.56));
+  transition:opacity .85s ease;
+}
+.mission-screen.is-start-leaving .mission-center-action {
+  opacity:0;
+  transform:translateY(12px) scale(.97);
+  pointer-events:none;
+  transition:opacity .22s ease, transform .22s ease;
+}
+.mission-center-countdown { background:none; }
+.mission-center-countdown>span,
+.mission-center-countdown>small { display:none; }
+
+.mission-screen.is-gameplay {
+  width:100%;
+  height:100dvh;
+  min-height:0;
+  padding:0;
+  overflow:hidden;
+}
+.mission-screen.is-gameplay .mission-body {
+  position:absolute;
+  inset:0;
+  display:block;
+  width:100%;
+  max-width:none;
+  margin:0;
+}
+.mission-screen.is-gameplay .mission-view {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100dvh;
+  min-height:0;
+  max-height:none;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+}
+.mission-screen.is-gameplay .mission-view:after { display:none; }
+.mission-screen.is-gameplay .mission-topline {
+  position:absolute;
+  z-index:7;
+  top:72px;
+  right:16px;
+  left:16px;
+  justify-content:flex-start;
+  margin:0;
+  pointer-events:none;
+}
+.mission-screen.is-gameplay .mission-topline>div:first-child { display:none; }
+.mission-screen.is-gameplay .mission-tools { pointer-events:auto; }
+.mission-screen.is-gameplay .mission-topline .mission-button {
+  min-height:40px;
+  padding:0 12px;
+  background:rgba(8,15,32,.72);
+  backdrop-filter:blur(8px);
+}
+.mission-screen.is-gameplay .mission-side {
+  position:absolute;
+  z-index:6;
+  right:14px;
+  bottom:84px;
+  left:14px;
+  display:flex;
+  flex-direction:row;
+  align-items:flex-end;
+  gap:0;
+  pointer-events:none;
+}
+.mission-screen.is-gameplay .mission-side>.mission-panel:first-child {
+  display:block;
+  width:100%;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:none;
+  box-shadow:none;
+  backdrop-filter:none;
+  pointer-events:auto;
+}
+.mission-screen.is-gameplay .mission-side>.mission-panel:not(:first-child) { display:none; }
+.mission-screen.is-gameplay .mission-side>.mission-panel:first-child>:not(.mission-stage-controls) { display:none; }
+.mission-screen.is-gameplay .mission-stage-controls {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:7px;
+  width:100%;
+}
+.mission-screen.is-gameplay .mission-stage-controls .mission-button {
+  width:auto;
+  min-height:40px;
+  margin:0;
+  padding-inline:12px;
+  background:rgba(8,15,32,.8);
+  backdrop-filter:blur(8px);
+}
+.mission-screen.is-gameplay .mission-stage-controls>.mission-stage-controls { flex-basis:100%; }
+.mission-screen.is-gameplay .mission-stage-controls .mission-copy {
+  display:block;
+  margin:0;
+  color:#d0deed;
+  font-size:11px;
+}
+.mission-screen.is-gameplay .mission-orbit-hold {
+  display:block;
+  margin:0;
+  padding:8px 10px;
+  border-radius:8px;
+  background:rgba(8,15,32,.78);
+  font-size:10px;
+}
+.mission-screen.is-gameplay .mission-stage-status {
+  color:#d2e3f3;
+  text-shadow:0 1px 4px #000;
+}
+.mission-screen.is-gameplay .mission-view-meta { top:14px; left:12px; }
+.mission-screen.is-gameplay .mission-hud { z-index:4; inset:auto 10px 10px; }
+.mission-screen.is-gameplay .mission-hud-note {
+  max-width:min(390px,58vw);
+  padding:8px 10px;
+  background:rgba(8,15,32,.64);
+  font-size:11px;
+  backdrop-filter:blur(8px);
+}
+.mission-screen.is-gameplay .mission-camera { background:rgba(8,15,32,.78); }
+.mission-screen[data-phase="surface"].is-gameplay .mission-side { bottom:142px; }
+.mission-screen[data-phase="surface"].is-gameplay .mission-hud-note { display:none; }
+.mission-screen[data-phase="surface"].is-gameplay .mission-touch {
+  right:10px;
+  bottom:10px;
+  left:auto;
+  transform:none;
+}
+.mission-screen[data-phase="finish"]>.logo-footer {
+  position:fixed;
+  bottom:max(4px,env(safe-area-inset-bottom));
+}
+.mission-screen[data-phase="finish"] .mission-success { inset:0 0 62px; }
+.mission-screen[data-phase="finish"] .mission-success-card { max-height:calc(100dvh - 120px); overflow:auto; }
+.mission-fps-counter {
+  position:absolute;
+  z-index:7;
+  top:12px;
+  right:12px;
+  padding:5px 7px;
+  border:1px solid rgba(138,213,255,.35);
+  border-radius:5px;
+  background:rgba(3,9,20,.74);
+  color:#9ff0d1;
+  font:10px var(--app-font-mono);
+  direction:ltr;
+  pointer-events:none;
+}
+.mission-fps-counter[hidden] { display:none; }
+
+.cosmos-app:has(.mission-screen.is-gameplay) .section-topbar {
+  top:0;
+  justify-content:flex-end;
+  padding:7px 12px;
+  pointer-events:none;
+}
+.cosmos-app:has(.mission-screen.is-gameplay) .section-topbar .brand-mark,
+.cosmos-app:has(.mission-screen.is-gameplay) .section-topbar .clock-readout,
+.cosmos-app:has(.mission-screen.is-gameplay) .section-topbar [data-testid="button-section-home"] { display:none; }
+.cosmos-app:has(.mission-screen.is-gameplay) .section-topbar .top-actions { pointer-events:auto; }
+.cosmos-app:has(.mission-screen.is-gameplay) .section-topbar .icon-control {
+  min-height:38px;
+  height:38px;
+  background:rgba(8,15,32,.68);
+}
+
+@media(max-width:760px) {
+  .mission-screen.is-gameplay .mission-topline { top:58px; right:12px; left:12px; }
+  .mission-settings { top:61px; left:10px; }
+  .mission-screen.is-gameplay .mission-side { right:9px; bottom:78px; left:9px; }
+  .mission-screen.is-gameplay .mission-stage-controls { gap:6px; }
+  .mission-screen.is-gameplay .mission-stage-controls .mission-button { min-height:37px; padding-inline:9px; font-size:11px; }
+  .mission-screen.is-gameplay .mission-hud { inset:auto 8px 8px; }
+  .mission-screen.is-gameplay .mission-hud-note { max-width:54%; padding:7px 8px; font-size:10px; }
+  .mission-screen.is-gameplay .mission-camera { gap:2px; padding:3px; }
+  .mission-screen.is-gameplay .mission-camera button { min-height:32px; padding-inline:7px; font-size:9px; }
+  .mission-screen[data-phase="surface"].is-gameplay .mission-side { bottom:134px; }
+  .mission-screen[data-phase="surface"].is-gameplay .mission-touch { bottom:9px; }
+  .mission-screen[data-phase="surface"].is-gameplay .mission-camera { position:absolute; right:0; bottom:64px; }
+  .mission-screen[data-phase="surface"].is-gameplay .mission-hud-note { display:none; }
+  .mission-screen[data-phase="finish"] .mission-success { inset:0 0 54px; padding:10px; }
+}
+@media(max-width:420px) {
+  .mission-screen.is-gameplay .mission-hud-note small { font-size:8px; }
+  .mission-screen.is-gameplay .mission-chip { padding:6px 7px; font-size:7px; }
+  .mission-screen.is-gameplay .mission-side>.mission-panel:first-child { padding-inline:0; }
+}

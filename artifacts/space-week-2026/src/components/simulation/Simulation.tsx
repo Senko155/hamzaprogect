@@ -1,9 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Activity, ArrowDown, ArrowUp, Flag, Home, Pause, Play, Radio, RotateCcw, Rocket, Zap } from 'lucide-react';
+import { Activity, ArrowDown, ArrowUp, Flag, Home, Pause, Play, Radio, RotateCcw, Rocket, Settings2, Zap } from 'lucide-react';
 import MissionScene, { type MissionPhase } from './MissionScene';
+import LogoFooter from '../LogoFooter';
 import './simulation.css';
 
 type Props = { muted: boolean; onToggleMute: () => void; onBackHome: () => void };
+type Quality = 'low' | 'medium' | 'high';
+function defaultQuality(): Quality {
+  if (typeof window === 'undefined') return 'low';
+  return window.matchMedia('(max-width: 760px)').matches
+    || window.matchMedia('(pointer: coarse)').matches
+    || (navigator.maxTouchPoints ?? 0) > 0
+    || (navigator.hardwareConcurrency ?? 8) <= 8
+    || (window.devicePixelRatio || 1) <= 1.25
+    ? 'low'
+    : 'medium';
+}
 const phaseLabels: Record<MissionPhase, string> = {
   ready: 'منصة الإطلاق',
   countdown: 'العدّ التنازلي',
@@ -99,6 +111,11 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
   const [name,setName]=useState('');
   const [plantedName,setPlantedName]=useState('');
   const [radio,setRadio]=useState('');
+  const [quality,setQuality]=useState<Quality>(defaultQuality);
+  const [showFps,setShowFps]=useState(false);
+  const [settingsOpen,setSettingsOpen]=useState(false);
+  const [startPanelLeaving,setStartPanelLeaving]=useState(false);
+  const startTimerRef=useRef<number|undefined>(undefined);
   const audio=useMissionAudio(muted);
   const phaseRef=useRef(phase);phaseRef.current=phase;
 
@@ -109,7 +126,18 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
     audio.stop();setPhase('ready');setPhaseSeconds(0);setMissionSeconds(0);setPaused(false);
     setFirstPerson(false);setTilt(0);setThrottle(.68);setAssisted(true);setWalked(0);setJumpStarted(0);
     setFlagForm(false);setName('');setPlantedName('');setRadio('');
+    setStartPanelLeaving(false);
   };
+  const startCountdown=()=>{
+    if(phaseRef.current!=='ready'||startTimerRef.current!==undefined)return;
+    setStartPanelLeaving(true);
+    startTimerRef.current=window.setTimeout(()=>{
+      startTimerRef.current=undefined;
+      setStartPanelLeaving(false);
+      begin('countdown');
+    },220);
+  };
+  useEffect(()=>()=>{if(startTimerRef.current!==undefined)window.clearTimeout(startTimerRef.current);},[]);
   const orbitSkip=()=>{audio.tone(660,.24,.1);setRadio('تم تأكيد المدار. أنظمة المركبة مستقرة.');begin('orbit');};
   const triggerTli=()=>{audio.tone(330,.35,.12);audio.tone(660,.4,.07);setRadio('تم إشعال محرك المرحلة العليا. المسار إلى القمر مؤكد.');begin('journey');};
 
@@ -217,15 +245,23 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
     finish:`وصل ${plantedName||'رائد الفضاء'} إلى سطح القمر وأكمل المهمة بنجاح.`,
   };
   return (
-    <main className={`mission-screen${phase==='countdown'&&phaseSeconds>=2&&!paused?' is-countdown':''}`} dir="rtl" data-testid="page-simulation">
-      <MissionScene phase={phase} phaseSeconds={phaseSeconds} missionSeconds={missionSeconds} firstPerson={firstPerson} paused={paused} tilt={tilt} throttle={throttle} walking={walked} jumpStarted={jumpStarted} flagName={plantedName} onLoaded={()=>setLoaded(true)} />
+    <main className={`mission-screen${phase==='countdown'&&phaseSeconds>=2&&!paused?' is-countdown':''}${phase!=='ready'&&phase!=='finish'?' is-gameplay':''}${startPanelLeaving?' is-start-leaving':''}`} dir="rtl" data-phase={phase} data-testid="page-simulation">
+      <MissionScene phase={phase} phaseSeconds={phaseSeconds} missionSeconds={missionSeconds} firstPerson={firstPerson} paused={paused} quality={quality} showFps={showFps} tilt={tilt} throttle={throttle} walking={walked} jumpStarted={jumpStarted} flagName={plantedName} onLoaded={()=>setLoaded(true)} />
       {!loaded&&<div className="mission-loading" role="status" data-testid="status-simulation-loading"><span className="mission-loading-mark"/><span>تهيئة مركبة المهمة ثلاثية الأبعاد…</span></div>}
       <div className="mission-topline">
         <div><div className="mission-kicker">WORLD SPACE WEEK · LUNAR MISSION 2026</div><h1 className="mission-heading">رحلة أبولو إلى القمر</h1></div>
         <div className="mission-tools">
           {phase!=='ready'&&phase!=='finish'&&<button className="mission-button" type="button" onClick={()=>setPaused(p=>!p)} aria-pressed={paused} data-testid="button-simulation-pause">{paused?<Play size={16}/>:<Pause size={16}/>}<span>{paused?'استئناف':'إيقاف مؤقت'}</span></button>}
+          <button className="mission-button mission-settings-toggle" type="button" onClick={()=>setSettingsOpen(open=>!open)} aria-label="إعدادات المحاكاة" aria-expanded={settingsOpen} data-testid="button-simulation-settings"><Settings2 size={16}/><span>الإعدادات</span></button>
         </div>
       </div>
+      {settingsOpen&&<div className="mission-settings" role="group" aria-label="إعدادات المحاكاة">
+        <label htmlFor="simulation-quality">جودة الرسوم</label>
+        <select id="simulation-quality" className="mission-select" value={quality} onChange={event=>setQuality(event.target.value as Quality)} data-testid="select-simulation-quality">
+          <option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">عالية</option>
+        </select>
+        <label className="mission-fps-toggle"><input type="checkbox" checked={showFps} onChange={event=>setShowFps(event.target.checked)} data-testid="toggle-simulation-fps"/>إظهار عداد FPS</label>
+      </div>}
       <div className="mission-body">
         <aside className="mission-side">
           <section className="mission-panel" aria-live="polite">
@@ -286,13 +322,14 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
         </aside>
         <section className="mission-view mission-glass" aria-label="مشهد الرحلة الفضائية">
           {phase==='ready'&&<div className="mission-center-action">
-            <button className="mission-button primary" type="button" onClick={()=>begin('countdown')} data-testid="button-start-countdown"><Rocket size={19}/>اضغط لبدء العد التنازلي</button>
+            <button className="mission-button primary" type="button" onClick={startCountdown} disabled={startPanelLeaving} data-testid="button-start-countdown"><Rocket size={19}/>اضغط لبدء العد التنازلي</button>
             <span>مركز التحكم · جميع الأنظمة جاهزة</span>
           </div>}
           {phase==='countdown'&&<div className="mission-center-countdown" aria-live="assertive" data-testid="text-countdown">
-            <span>العدّ التنازلي للإقلاع</span><strong>{Math.max(0,countdown)}</strong><small>T MINUS</small>
+            <strong>{Math.max(0,countdown)}</strong>
           </div>}
            {firstPerson&&<div className={`mission-cockpit${phase==='countdown'||phase==='ascent'?' is-vibrating':''}`} aria-hidden="true"/>}
+           {phase==='ascent'&&<div className="mission-atmosphere-pass" aria-hidden="true" style={{opacity:Math.max(0,1-Math.abs((phaseSeconds-232)/18))*.72}}/>}
             <div className="mission-view-meta"><span className="mission-chip">{phaseLabels[phase].toUpperCase()}</span><span className="mission-chip">{paused?'PAUSED':'LIVE TELEMETRY'}</span>{!firstPerson&&<span className="mission-chip camera-help" dir="rtl">اسحب للتدوير · قرّب إصبعين للتكبير</span>}</div>
           <div className="mission-hud">
             <div className="mission-hud-note"><small>MISSION CONTROL · 2026</small>{phase==='orbit'?'مهمتك الآن: استكشاف القمر 🌕':radio||'أنظمة الرحلة مستقرة — استمر في المهمة'}</div>
@@ -324,6 +361,7 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
           </div>}
         </section>
       </div>
+      {phase==='finish'&&<LogoFooter />}
     </main>
   );
 }

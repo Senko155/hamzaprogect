@@ -3,6 +3,7 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { ArrowRight, CirclePlay } from 'lucide-react';
 import { useLocation } from 'wouter';
+import LogoFooter from '../components/LogoFooter';
 import { videoTitle as configuredTitle, videoUrl } from '../mathConfig.js';
 
 type Equation = { tex: string; x: number; y: number; layer: 'is-deep' | 'is-mid' | 'is-near'; tint?: 'is-gold' | 'is-green'; delay: number; duration: number };
@@ -194,6 +195,7 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
         </button>
       </section>
       <div className="math-corner-note" aria-hidden="true">MATHEMATICS · FIELD NOTES 026</div>
+      <LogoFooter />
     </main>
   );
 }

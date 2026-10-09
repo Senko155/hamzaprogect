@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { ArrowDownLeft, CirclePlay, RotateCcw, Sparkles } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
 import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor } from '@/components/solar-system-model';
+import LogoFooter from '@/components/LogoFooter';
 
 type Body = { id: string; name: string; color: number; size: number };
 const videos = (window as Window & { SCIENCE_WEEK_VIDEOS?: Record<string, string> }).SCIENCE_WEEK_VIDEOS ?? {};
@@ -492,6 +493,24 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
         ring.rotation.x = Math.PI * .31;
         planet.add(ring);
       }
+      if (spec.id === 'uranus') {
+        // Uranus's spin axis is tipped almost sideways; its narrow rings share that axial tilt.
+        planet.rotation.x = THREE.MathUtils.degToRad(98);
+        const uranusBands = [
+          { inner: 1.2, outer: 1.29, color: 0x7899a4, opacity: .2 },
+          { inner: 1.36, outer: 1.4, color: 0x9ab8c0, opacity: .13 },
+          { inner: 1.47, outer: 1.58, color: 0x657e8b, opacity: .18 },
+          { inner: 1.68, outer: 1.73, color: 0xacc3c6, opacity: .1 },
+        ];
+        uranusBands.forEach(({ inner, outer, color, opacity }) => {
+          const ring = new THREE.Mesh(
+            new THREE.RingGeometry(inner, outer, 56),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
+          );
+          ring.scale.set(spec.size, spec.size, 1);
+          planet.add(ring);
+        });
+      }
       scene.add(planet);
       meshes.set(spec.id, planet);
       selectables.push(planet);
@@ -633,7 +652,7 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
           slowProgress.delete(spec.id);
           mesh.position.copy(positionFor(spec, centuries));
         }
-        mesh.rotation.y += reduced ? 0 : spec.rotation * delta;
+        if (spec.id !== 'uranus') mesh.rotation.y += reduced ? 0 : spec.rotation * delta;
       });
       const selected = selectedRef.current;
       if (selected) {
@@ -766,6 +785,7 @@ export default function SciencePage() {
         </section>
       )}
       <div className="science-scale" dir="ltr" data-testid="science-model-caption">SOLAR SYSTEM · LIVE MODEL</div>
+      <LogoFooter />
     </main>
   );
 }

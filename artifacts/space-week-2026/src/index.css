@@ -1178,6 +1178,56 @@ button { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   .science-hint-pulse { animation: none; }
 }
+
+/* Shared image-only partner footer; each page reserves space so it stays clear of controls. */
+.logo-footer {
+  position: absolute;
+  z-index: 5;
+  right: 0;
+  bottom: max(6px, env(safe-area-inset-bottom));
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(18px, 3vw, 34px);
+  min-height: 60px;
+  padding: 5px 12px;
+  pointer-events: none;
+}
+.logo-footer img {
+  display: block;
+  width: auto;
+  height: 46px;
+  max-width: min(43vw, 240px);
+  object-fit: contain;
+  filter: drop-shadow(0 0 4px rgba(255,255,255,.18));
+}
+.home-content { padding-bottom: 104px; }
+.orbit-note { bottom: 78px; }
+.event-stamp { bottom: 76px; }
+.science-instruction,
+.science-scale { bottom: 78px; }
+.science-detail { bottom: max(74px, calc(env(safe-area-inset-bottom) + 68px)); }
+.math-corner-note { bottom: 76px; }
+.math-center { padding-bottom: 110px; }
+@media (max-width: 760px) {
+  .logo-footer { min-height: 48px; gap: 16px; padding: 4px 10px; }
+  .logo-footer img { height: 34px; max-width: min(43vw, 190px); }
+  .home-content { padding-bottom: 120px; }
+  .orbit-note,
+  .event-stamp { bottom: 68px; }
+  .science-instruction,
+  .science-scale { bottom: 62px; }
+  .science-detail { bottom: max(62px, calc(env(safe-area-inset-bottom) + 58px)); }
+  .science-detail { max-height: min(68vh, 560px); }
+  .math-corner-note { bottom: 64px; }
+  .math-center { padding-bottom: 118px; }
+}
+@media (max-width: 420px) {
+  .logo-footer { gap: 12px; }
+  .logo-footer img { height: 33px; }
+}
+
 @keyframes launchShake {
   0%,100% { translate: 0 0; }
   25% { translate: -4px 1px; }
@@ -1359,4 +1409,14 @@ button { font: inherit; }
   .border.hover-elevate:not(.no-hover-interaction-elevate)::after {
     inset: -1px;
   }
+}
+
+/* Keep the home footer clear of the orbit captions on the smallest screens. */
+.home-content { padding-bottom: 104px; }
+.orbit-note { bottom: 78px; }
+.event-stamp { bottom: 76px; }
+@media (max-width: 760px) {
+  .home-content { padding-bottom: 120px; }
+  .orbit-note,
+  .event-stamp { bottom: 68px; }
 }

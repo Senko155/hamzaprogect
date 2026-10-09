@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { ArrowUpLeft, Calculator, Home, Orbit, Rocket, Volume2, VolumeX } from 'lucide-react';
 import OrbitalStage from './OrbitalStage';
+import LogoFooter from './LogoFooter';
 import SciencePage from '../pages/SciencePage';
 import MathPage from '../pages/MathPage';
 import Simulation from './simulation/Simulation';
@@ -166,6 +167,7 @@ export default function SpaceExperience() {
             </section>
           </main>
           <div className="orbit-note" aria-label="تصور بصري للمدارات" data-testid="label-orbit-scale">SOLAR SYSTEM · LIVE ORBITS</div>
+          <LogoFooter />
         </>
       ) : (
         <>
