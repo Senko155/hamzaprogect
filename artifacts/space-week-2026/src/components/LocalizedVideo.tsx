@@ -57,14 +57,16 @@ export default function LocalizedVideo({
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    const video = videoRef.current;
+    const iframe = iframeRef.current;
     return () => {
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.removeAttribute('src');
-        videoRef.current.load();
+      if (video) {
+        video.pause();
+        video.removeAttribute('src');
+        video.load();
       }
-      if (iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage(JSON.stringify({
+      if (iframe?.contentWindow) {
+        iframe.contentWindow.postMessage(JSON.stringify({
           event: 'command',
           func: 'stopVideo',
           args: [],

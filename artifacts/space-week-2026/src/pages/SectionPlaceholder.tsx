@@ -1,5 +1,6 @@
 import { useLocation } from 'wouter';
-import { ArrowRight, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowRight, type LucideIcon } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 type Props = {
   section: 'science' | 'math';
@@ -12,9 +13,10 @@ type Props = {
 
 export default function SectionPlaceholder({ section, number, title, lead, hint, icon: Icon }: Props) {
   const [, setLocation] = useLocation();
+  const { direction, language, t } = useLanguage();
 
   return (
-    <main className="route-screen" dir="rtl" data-testid={`page-${section}`}>
+    <main className="route-screen" dir={direction} lang={language} data-testid={`page-${section}`}>
       <section className="route-panel" aria-labelledby={`title-${section}`} data-testid={`panel-${section}`}>
         <div className="route-index" data-testid={`label-${section}-index`}>{number}</div>
         <div style={{ color: '#75e4ff', marginTop: 24 }} aria-hidden="true"><Icon size={34} strokeWidth={1.35} /></div>
@@ -23,8 +25,8 @@ export default function SectionPlaceholder({ section, number, title, lead, hint,
         <div className="route-rule" />
         <div className="route-hint" data-testid={`status-${section}-coming-soon`}>{hint}</div>
         <button className="launch-button" type="button" style={{ marginTop: 29 }} onClick={() => setLocation('/')} data-testid="button-back-home">
-          <ArrowRight size={17} />
-          <span>العودة إلى البداية</span>
+          {direction === 'rtl' ? <ArrowRight size={17} /> : <ArrowLeft size={17} />}
+          <span>{t.home.returnToStart}</span>
         </button>
       </section>
     </main>

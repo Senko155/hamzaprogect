@@ -10,6 +10,7 @@ export const translations = {
       unmute: 'تشغيل الصوت',
       muted: 'صامت',
       soundOn: 'الصوت يعمل',
+      partnerLogos: 'شعارات الجهات المشاركة',
     },
     language: { label: 'اللغة', arabic: 'العربية', english: 'English', arabicCode: 'AR', englishCode: 'EN' },
     notFound: {
@@ -18,6 +19,7 @@ export const translations = {
       home: 'العودة إلى الرئيسية',
     },
     home: {
+      returnToStart: 'العودة إلى البداية',
       sectionsLabel: 'أقسام أسبوع الفضاء',
       sections: {
         simulation: { label: 'المحاكاة', description: 'انطلق برحلة صاروخية إلى القمر', discover: 'اكتشف القسم' },
@@ -233,6 +235,7 @@ export const translations = {
       unmute: 'Turn sound on',
       muted: 'Muted',
       soundOn: 'Sound on',
+      partnerLogos: 'Partner logos',
     },
     language: { label: 'Language', arabic: 'العربية', english: 'English', arabicCode: 'AR', englishCode: 'EN' },
     notFound: {
@@ -241,6 +244,7 @@ export const translations = {
       home: 'Return to home',
     },
     home: {
+      returnToStart: 'Return to the start',
       sectionsLabel: 'World Space Week sections',
       sections: {
         simulation: { label: 'Simulation', description: 'Take a rocket journey to the Moon', discover: 'Explore section' },

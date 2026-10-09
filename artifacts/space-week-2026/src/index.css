@@ -1253,6 +1253,8 @@ button { font: inherit; }
   .cosmos-app { min-height: 100svh; }
   .topbar { position: absolute; flex-wrap: wrap; gap: 11px; padding: 15px 18px 0; }
   .top-actions { width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+  .top-actions .icon-control span { display: none; }
+  .top-actions .icon-control { padding-inline: 12px; }
   .clock-readout {
     order: 2;
     flex-basis: 100%;
