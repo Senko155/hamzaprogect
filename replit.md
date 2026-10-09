@@ -1,9 +1,13 @@
-# [Project name]
+# Space Week 2026
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A bilingual Arabic/English Space Week experience with space simulations, science content, and mathematics content.
 
 ## Run & Operate
 
+- `pnpm install --frozen-lockfile` — install the imported workspace's dependencies before starting services
+- Start the managed `artifacts/space-week-2026: web` workflow for the website preview at `/`. It runs `pnpm --filter @workspace/space-week-2026 run dev` and supplies `PORT` and `BASE_PATH` automatically.
+- `pnpm --filter @workspace/space-week-2026 run typecheck` — check the website's TypeScript
+- `PORT=22282 BASE_PATH=/ pnpm --filter @workspace/space-week-2026 run build` — build the website locally
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
