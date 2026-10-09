@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { ArrowRight, CirclePlay } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useLocation } from 'wouter';
 import LogoFooter from '../components/LogoFooter';
-import { videoTitle as configuredTitle, videoUrl } from '../mathConfig.js';
+import { useLanguage, type Language } from '../i18n/LanguageContext';
+import { videos } from '../videos.js';
+import VideoLanguageToggle from '../components/VideoLanguageToggle';
+import LocalizedVideo from '../components/LocalizedVideo';
+
+const planetIds = Object.keys(videos) as (keyof typeof videos)[];
 
 type Equation = { tex: string; x: number; y: number; layer: 'is-deep' | 'is-mid' | 'is-near'; tint?: 'is-gold' | 'is-green'; delay: number; duration: number };
 const equations: Equation[] = [
@@ -32,28 +37,6 @@ const equations: Equation[] = [
   { tex: String.raw`v=\sqrt{\frac{GM}{r}}`, x: 84, y: 43, layer: 'is-near', tint: 'is-gold', delay: -12, duration: 34 },
   { tex: String.raw`\oint_{\partial V}\mathbf{E}\cdot d\mathbf{A}=\frac{Q_{\rm enc}}{\varepsilon_0}`, x: 57, y: 66, layer: 'is-deep', delay: -32, duration: 45 },
 ];
-
-function getVideoSource(raw: string): { kind: 'youtube' | 'mp4'; src: string } | null {
-  const value = raw.trim();
-  if (!value) return null;
-  try {
-    const url = new URL(value, window.location.origin);
-    const host = url.hostname.toLowerCase();
-    const youtubeHost = host === 'youtube.com' || host === 'www.youtube.com' || host === 'm.youtube.com' || host === 'youtu.be' || host === 'www.youtube-nocookie.com' || host === 'youtube-nocookie.com';
-    if (youtubeHost && (url.protocol === 'https:' || url.origin === window.location.origin)) {
-      const segment = url.hostname === 'youtu.be'
-        ? url.pathname.split('/').filter(Boolean)[0]
-        : url.searchParams.get('v') || url.pathname.split('/').filter(Boolean).pop();
-      if (!segment || !/^[\w-]{11}$/.test(segment)) return null;
-      return { kind: 'youtube', src: `https://www.youtube-nocookie.com/embed/${segment}?rel=0&modestbranding=1` };
-    }
-    const localVideo = url.origin === window.location.origin && /^\/videos\/[a-zA-Z0-9._/-]+\.mp4$/i.test(url.pathname) && !url.pathname.includes('..');
-    if (localVideo && (url.protocol === 'https:' || url.protocol === 'http:')) return { kind: 'mp4', src: url.href };
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 function MathCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -140,9 +123,15 @@ function MathCanvas() {
 
 export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {}) {
   const [, setLocation] = useLocation();
-  const title = configuredTitle || 'عنوان المقطع هنا';
+  const { language, direction, t } = useLanguage();
+  const [selectedId, setSelectedId] = useState<(typeof planetIds)[number]>('sun');
+  const [videoLanguageOverride, setVideoLanguageOverride] = useState<{ planetId: (typeof planetIds)[number]; language: Language } | null>(null);
+  const videoLanguage = videoLanguageOverride?.planetId === selectedId ? videoLanguageOverride.language : language;
+  const [videoOpen, setVideoOpen] = useState(true);
   const returnHome = () => onBackHome ? onBackHome() : setLocation('/');
-  const source = useMemo(() => getVideoSource(videoUrl), []);
+  const selectedName = t.science.names[selectedId];
+  const videoUrl = videos[selectedId].math[videoLanguage];
+  const bodyFacts = t.science.factsByPlanet[selectedId];
   const renderedEquations = useMemo(() => equations.map((equation, index) => ({
     ...equation,
     html: katex.renderToString(equation.tex, { throwOnError: false, output: 'html' }),
@@ -150,7 +139,7 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
   })), []);
 
   return (
-    <main className="math-page" dir="rtl" data-testid="page-math" aria-label="مساحة الرياضيات">
+    <main className="math-page" dir={direction} lang={language} data-testid="page-math" aria-label={t.math.label}>
       <MathCanvas />
       <div className="math-equation-field" aria-hidden="true" data-testid="math-equation-field">
         {renderedEquations.map(({ html, index, x, y, layer, tint, delay, duration }) => (
@@ -164,37 +153,53 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
         ))}
       </div>
       <div className="math-center-shade" aria-hidden="true" />
-      <section className="math-center" aria-label="فيديو الرياضيات">
-        <p className="math-kicker" data-testid="label-math-kicker">SPACE · NUMBER · MOTION</p>
-        <h1 className="math-title" data-testid="text-math-video-title">{title}</h1>
-        <div className="math-video-frame" data-testid="video-math-frame">
-          {source?.kind === 'youtube' && (
-            <iframe
-              src={source.src}
-              title={title || 'فيديو الرياضيات'}
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
-              data-testid="video-math-youtube"
-            />
-          )}
-          {source?.kind === 'mp4' && <video src={source.src} controls playsInline preload="metadata" aria-label={title || 'فيديو الرياضيات'} data-testid="video-math-local" />}
-          {!source && (
-            <div className="math-video-placeholder" data-testid="placeholder-math-video">
-              <span className="math-play-mark"><CirclePlay size={25} strokeWidth={1.3} /></span>
-              <strong>مكان الفيديو</strong>
-              <small>VIDEO SIGNAL · AWAITING TRANSMISSION</small>
-            </div>
-          )}
-        </div>
-        {videoUrl.trim() && !source && <p className="math-error-note" role="status" data-testid="status-video-url">رابط الفيديو غير صالح. استخدم يوتيوب أو ملف MP4 داخل مجلد videos.</p>}
-        <button className="math-back" type="button" onClick={returnHome} data-testid="button-math-back-home">
-          <ArrowRight size={16} aria-hidden="true" />
-          <span>رجوع</span>
-        </button>
+      <section className="math-center" aria-label={t.math.label}>
+        <article className="math-content-card">
+          <h1 className="math-title" data-testid="text-math-video-title">{t.math.videoTitle(selectedName)}</h1>
+          <VideoLanguageToggle
+            language={videoLanguage}
+            onChange={(nextLanguage) => setVideoLanguageOverride({ planetId: selectedId, language: nextLanguage })}
+            label={t.video.language}
+            arabicLabel={t.video.arabic}
+            englishLabel={t.video.english}
+          />
+          <div className="math-video-frame" data-testid="video-math-frame">
+            {videoOpen && <LocalizedVideo
+              key={`${selectedId}-${videoLanguage}-${videoUrl}`}
+              raw={videoUrl}
+              title={t.math.videoTitle(selectedName)}
+              emptyLabel={t.math.emptyVideo}
+              placeholderClassName="math-video-placeholder"
+              mediaClassName="math-video-media"
+              testId="video-math-player"
+            />}
+          </div>
+          <p className="math-video-facts" data-testid="math-video-facts">
+            <span>{t.math.factDistance(bodyFacts.distance)}</span>
+            <span>{t.math.factDay(bodyFacts.day)}</span>
+            <span>{t.math.factMoons(bodyFacts.moons)}</span>
+          </p>
+          <div className="math-planet-picker" role="group" aria-label={t.math.planetPicker}>
+            {planetIds.map((id) => (
+              <button
+                type="button"
+                key={id}
+                className={selectedId === id ? 'is-selected' : ''}
+                aria-pressed={selectedId === id}
+                aria-label={t.science.names[id]}
+                onClick={() => { setVideoOpen(true); setVideoLanguageOverride(null); setSelectedId(id); }}
+              >
+                {t.science.names[id]}
+              </button>
+            ))}
+          </div>
+          <button className="math-back" type="button" onClick={() => { setVideoOpen(false); returnHome(); }} data-testid="button-math-back-home">
+            {direction === 'rtl' ? <ArrowRight size={16} aria-hidden="true" /> : <ArrowLeft size={16} aria-hidden="true" />}
+            <span>{t.math.back}</span>
+          </button>
+        </article>
       </section>
-      <div className="math-corner-note" aria-hidden="true">MATHEMATICS · FIELD NOTES 026</div>
+      <div className="math-corner-note" aria-hidden="true">{t.math.cornerNote}</div>
       <LogoFooter />
     </main>
   );

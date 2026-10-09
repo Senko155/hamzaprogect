@@ -5,6 +5,7 @@
   "compilerOptions": {
     "noEmit": true,
     "jsx": "preserve",
+    "allowJs": true,
     "lib": ["esnext", "dom", "dom.iterable"],
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,

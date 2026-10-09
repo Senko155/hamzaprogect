@@ -16,6 +16,10 @@ type SceneProps = {
   walking: number;
   jumpStarted: number;
   flagName: string;
+  language: 'ar' | 'en';
+  flagInscription: string;
+  emptyAstronaut: string;
+  sceneDescription: string;
   onLoaded: () => void;
 };
 
@@ -362,7 +366,7 @@ function MissionCanvasFallback({ state }: { state: SceneState }) {
           const flagX = width * .77, flagY = height * .67;
           ctx.strokeStyle = '#d0d5d8'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(flagX, flagY + 50); ctx.lineTo(flagX, flagY - 15); ctx.stroke();
           ctx.fillStyle = '#087d50'; ctx.fillRect(flagX, flagY - 14, 64, 35);
-          ctx.direction = 'rtl'; ctx.textAlign = 'center'; ctx.fillStyle = '#f5f4df'; ctx.font = 'bold 9px Tajawal, sans-serif'; ctx.fillText(s.flagName, flagX + 32, flagY + 8);
+          ctx.direction = s.language === 'ar' ? 'rtl' : 'ltr'; ctx.textAlign = 'center'; ctx.fillStyle = '#f5f4df'; ctx.font = 'bold 9px Tajawal, sans-serif'; ctx.fillText(s.flagName, flagX + 32, flagY + 8);
         }
       }
       if (!reduceMotion && !s.paused) {
@@ -630,7 +634,7 @@ export default function MissionScene(props: SceneProps) {
 
     let disposed=false, raf=0, prev=performance.now(), lastRender=0, drag=false, lastX=0,lastY=0, yaw=0,pitch=0,zoom=1;
     const activePointers=new Map<number,{x:number;y:number}>();
-    let pinchStart=0,pinchZoom=1,renderedFlag='';
+    let pinchStart=0,pinchZoom=1;
     let visibilityRaf=0;
     const resize=()=>{const w=host.clientWidth||innerWidth,h=host.clientHeight||innerHeight;renderer.setPixelRatio(Math.min(adaptivePixelRatio,devicePixelRatio||1));renderer.setSize(w,h,false);camera.aspect=w/h;camera.fov=w/h<.8?60:LOW_POWER_DEVICE?56:48;camera.updateProjectionMatrix();};
     const viewSurface=host.parentElement?.querySelector<HTMLElement>('.mission-view')??renderer.domElement;
@@ -645,8 +649,8 @@ export default function MissionScene(props: SceneProps) {
     const wheel=(e:WheelEvent)=>{e.preventDefault();zoom=THREE.MathUtils.clamp(zoom+e.deltaY*.001,.72,1.6);};
     viewSurface.addEventListener('pointerdown',down);viewSurface.addEventListener('pointermove',move);viewSurface.addEventListener('pointerup',up);viewSurface.addEventListener('pointercancel',up);viewSurface.addEventListener('wheel',wheel,{passive:false});
     window.addEventListener('resize',resize);resize();
-    const drawFlag=(name:string)=>{flagCtx.clearRect(0,0,512,300);flagCtx.fillStyle='#087d50';flagCtx.fillRect(0,0,512,300);flagCtx.direction='rtl';flagCtx.textAlign='center';flagCtx.fillStyle='#f5f4df';flagCtx.font='bold 31px Tajawal, sans-serif';flagCtx.fillText('لا إله إلا الله محمد رسول الله',256,124);flagCtx.fillRect(159,148,194,7);flagCtx.font='bold 27px Tajawal, sans-serif';flagCtx.fillText(name||'رائد الفضاء',256,220);flagTexture.needsUpdate=true;};
-    drawFlag(stateRef.current.flagName);
+    const drawFlag=(name:string,inscription:string,language:'ar'|'en',emptyAstronaut:string)=>{flagCtx.clearRect(0,0,512,300);flagCtx.fillStyle='#087d50';flagCtx.fillRect(0,0,512,300);flagCtx.direction=language==='ar'?'rtl':'ltr';flagCtx.textAlign='center';flagCtx.fillStyle='#f5f4df';flagCtx.font=`bold ${language==='ar'?'31px Tajawal':'24px Arial'}, sans-serif`;flagCtx.fillText(inscription,256,124);flagCtx.fillRect(159,148,194,7);flagCtx.font='bold 27px Tajawal, sans-serif';flagCtx.fillText(name||emptyAstronaut,256,220);flagTexture.needsUpdate=true;};
+    drawFlag(stateRef.current.flagName,stateRef.current.flagInscription,stateRef.current.language,stateRef.current.emptyAstronaut);
     props.onLoaded();
     const dawnColor=skyColor.clone();
     const spaceColor=new THREE.Color(0x050813);
@@ -667,6 +671,7 @@ export default function MissionScene(props: SceneProps) {
     const qualityMaxPoints={smoke:puffCount,exhaust:exhaustCount,stars:starCount};
     let particleScale=1;
     let averageFrameMs=16.7, lastAdaptiveCheck=0, lastFpsUpdate=0;
+    let renderedFlag=stateRef.current.flagName, renderedInscription=stateRef.current.flagInscription, renderedLanguage=stateRef.current.language;
     let lastSceneSecond=-1, fractionalSecond=0,lastPhase=stateRef.current.phase;
     let cameraTransitionElapsed=1, lastCameraMode=stateRef.current.firstPerson;
     cameraTransitionPosition.copy(camera.position);
@@ -682,7 +687,7 @@ export default function MissionScene(props: SceneProps) {
       else if(!s.paused)fractionalSecond=Math.min(.98,fractionalSecond+dt);
       const t=s.phaseSeconds+fractionalSecond;
       averageFrameMs=averageFrameMs*.92+dt*1000*.08;
-      if(s.flagName!==renderedFlag){drawFlag(s.flagName);renderedFlag=s.flagName;}
+      if(s.flagName!==renderedFlag||s.flagInscription!==renderedInscription||s.language!==renderedLanguage){drawFlag(s.flagName,s.flagInscription,s.language,s.emptyAstronaut);renderedFlag=s.flagName;renderedInscription=s.flagInscription;renderedLanguage=s.language;}
       const isEarth=s.phase==='ready'||s.phase==='countdown'||s.phase==='ascent'||s.phase==='orbit'||s.phase==='journey';
       const earthVisible=isEarth||s.phase==='surface'||s.phase==='finish';
       confetti.visible=s.phase==='finish';beacon.visible=s.phase==='surface'||s.phase==='finish';
@@ -926,7 +931,7 @@ export default function MissionScene(props: SceneProps) {
     };
   }, [props.quality]);
 
-  return <div className="mission-scene" ref={hostRef} aria-label="مشهد ثلاثي الأبعاد لرحلة القمر" data-testid="simulation-three-scene">
+  return <div className="mission-scene" ref={hostRef} aria-label={props.sceneDescription} data-testid="simulation-three-scene">
     <div className="mission-fps-counter" ref={fpsRef} hidden aria-hidden="true" />
     {fallback&&<MissionCanvasFallback state={stateRef.current}/>}
   </div>;

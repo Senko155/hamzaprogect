@@ -1,27 +1,23 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import * as THREE from 'three';
-import { ArrowDownLeft, CirclePlay, RotateCcw, Sparkles } from 'lucide-react';
+import { ArrowDownLeft, ArrowDownRight, RotateCcw } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
 import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor } from '@/components/solar-system-model';
 import LogoFooter from '@/components/LogoFooter';
+import { useLanguage } from '../i18n/LanguageContext';
+import { videos } from '../videos.js';
+import type { Language } from '../i18n/LanguageContext';
+import VideoLanguageToggle from '../components/VideoLanguageToggle';
+import LocalizedVideo from '../components/LocalizedVideo';
+import { translations } from '../translations.js';
 
-type Body = { id: string; name: string; color: number; size: number };
-const videos = (window as Window & { SCIENCE_WEEK_VIDEOS?: Record<string, string> }).SCIENCE_WEEK_VIDEOS ?? {};
+type PlanetId = keyof typeof translations.ar.science.names;
+
+type Body = { id: PlanetId; color: number; size: number };
 const bodies: Body[] = [
-  { id: 'sun', name: 'الشمس', color: 0xffb96b, size: .78 },
-  ...planets.map(({ id, name, color, size }) => ({ id, name, color, size })),
+  { id: 'sun', color: 0xffb96b, size: .78 },
+  ...planets.map(({ id, color, size }) => ({ id: id as PlanetId, color, size })),
 ];
-const facts: Record<string, { distance: string; day: string; moons: string }> = {
-  sun: { distance: '—', day: 'نحو 27 يومًا', moons: '0' },
-  mercury: { distance: '57.9 مليون كم', day: '58.6 يومًا أرضيًا', moons: '0' },
-  venus: { distance: '108.2 مليون كم', day: '243 يومًا أرضيًا', moons: '0' },
-  earth: { distance: '149.6 مليون كم', day: '23 ساعة و56 دقيقة', moons: '1' },
-  mars: { distance: '227.9 مليون كم', day: '24 ساعة و37 دقيقة', moons: '2' },
-  jupiter: { distance: '778.6 مليون كم', day: '9 ساعات و56 دقيقة', moons: '101' },
-  saturn: { distance: '1.43 مليار كم', day: '10 ساعات و33 دقيقة', moons: '293' },
-  uranus: { distance: '2.87 مليار كم', day: '17 ساعة و14 دقيقة', moons: '29' },
-  neptune: { distance: '4.50 مليار كم', day: '16 ساعة و6 دقائق', moons: '16' },
-};
 
 type ProjectedLabel = { id: string; x: number; y: number; radius: number };
 type LabelSize = { width: number; height: number };
@@ -92,21 +88,10 @@ function placeProjectedLabels(
   return placements;
 }
 
-function videoSource(raw: string): { kind: 'youtube' | 'mp4'; src: string } | null {
-  if (!raw.trim()) return null;
-  try {
-    const url = new URL(raw, window.location.origin);
-    if (url.hostname.includes('youtube.com') || url.hostname === 'youtu.be' || url.hostname.endsWith('.youtube-nocookie.com')) {
-      const id = url.hostname === 'youtu.be' ? url.pathname.slice(1) : url.searchParams.get('v') || url.pathname.split('/').filter(Boolean).pop();
-      return id ? { kind: 'youtube', src: `https://www.youtube-nocookie.com/embed/${id}` } : null;
-    }
-    return { kind: 'mp4', src: url.href };
-  } catch {
-    return { kind: 'mp4', src: raw };
-  }
-}
-
 function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivElement | null; selectedId: string | null; onSelect: (id: string) => void }) {
+  const { language } = useLanguage();
+  const languageRef = useRef(language);
+  languageRef.current = language;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const selectedRef = useRef(selectedId);
   const selectRef = useRef(onSelect);
@@ -150,8 +135,9 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
     let transitionToX = .5;
     let transitionFromY = .52;
     let transitionToY = .52;
-    const labels = new Map(bodies.map((body) => [body.id, host.querySelector<HTMLButtonElement>(`[data-body-label="${body.id}"]`)] as const));
+    const labels = new Map<string, HTMLButtonElement | null>(bodies.map((body) => [body.id, host.querySelector<HTMLButtonElement>(`[data-body-label="${body.id}"]`)]));
     let labelSizes = measureLabels(labels);
+    let measuredLanguage = languageRef.current;
     const previousLabelPositions = new Map<string, { x: number; y: number }>();
     const stars = Array.from({ length: window.innerWidth < 720 ? 125 : 220 }, () => ({
       x: Math.random(), y: Math.random(), r: .35 + Math.random() * .8, alpha: .18 + Math.random() * .4,
@@ -350,6 +336,11 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
         const point = lastPositions.get(body.id);
         return point ? [{ id: body.id, ...point }] : [];
       });
+      if (measuredLanguage !== languageRef.current) {
+        labelSizes = measureLabels(labels);
+        previousLabelPositions.clear();
+        measuredLanguage = languageRef.current;
+      }
       const placements = placeProjectedLabels(projectedBodies, labels, labelSizes, previousLabelPositions, width, height, selected);
       placements.forEach((position, id) => {
         const label = labels.get(id);
@@ -392,12 +383,18 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
 }
 
 function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string) => void }) {
+  const { t, language } = useLanguage();
   const hostRef = useRef<HTMLDivElement>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const selectedRef = useRef(selectedId);
   const onSelectRef = useRef(onSelect);
+  const languageRef = useRef(language);
   selectedRef.current = selectedId;
   onSelectRef.current = onSelect;
+  languageRef.current = language;
+  useEffect(() => {
+    hostRef.current?.querySelector<HTMLElement>('.science-webgl')?.setAttribute('aria-label', t.science.canvasDescription);
+  }, [language, t]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -445,12 +442,13 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
     renderer.setClearColor(0x000000, 0);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.domElement.className = 'science-webgl';
-    renderer.domElement.setAttribute('aria-label', 'نموذج تفاعلي للشمس والكواكب؛ استخدم الأزرار المسماة لاستكشاف الأجرام');
+      renderer.domElement.setAttribute('aria-label', t.science.canvasDescription);
     renderer.domElement.setAttribute('role', 'img');
     renderer.domElement.dataset.testid = 'science-solar-canvas';
     host.appendChild(renderer.domElement);
-    const labelElements = new Map(bodies.map((body) => [body.id, host.querySelector<HTMLButtonElement>(`[data-body-label="${body.id}"]`)] as const));
+    const labelElements = new Map<string, HTMLButtonElement | null>(bodies.map((body) => [body.id, host.querySelector<HTMLButtonElement>(`[data-body-label="${body.id}"]`)]));
     let labelSizes = measureLabels(labelElements);
+    let measuredLanguage = languageRef.current;
     const previousLabelPositions = new Map<string, { x: number; y: number }>();
 
     scene.add(new THREE.AmbientLight(0x9cb3d4, 1.15));
@@ -556,6 +554,11 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
           label.tabIndex = -1;
         }
       });
+      if (measuredLanguage !== languageRef.current) {
+        labelSizes = measureLabels(labelElements);
+        previousLabelPositions.clear();
+        measuredLanguage = languageRef.current;
+      }
       const placements = placeProjectedLabels(projectedBodies, labelElements, labelSizes, previousLabelPositions, host.clientWidth, host.clientHeight, selectedRef.current);
       placements.forEach((position, id) => {
         const label = labelElements.get(id);
@@ -714,7 +717,7 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
   return (
     <div className={`science-scene${webglFailed ? ' is-fallback' : ''}`} ref={hostRef} data-testid="science-solar-scene">
       {webglFailed && <ScienceCanvasFallback host={hostRef.current} selectedId={selectedId} onSelect={onSelect} />}
-      <div className="science-body-labels" aria-label="اختر جرمًا سماويًا">
+      <div className="science-body-labels" aria-label={t.science.selectBody}>
         {bodies.map((body) => (
           <button
             className={`science-body-label${selectedId === body.id ? ' is-selected' : ''}`}
@@ -722,21 +725,21 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
             type="button"
             data-body-label={body.id}
             data-testid={`button-select-${body.id}`}
-            aria-label={`استكشف ${body.name}`}
+            aria-label={`${t.science.explore(t.science.names[body.id])}`}
             aria-pressed={selectedId === body.id}
             onClick={() => onSelect(body.id)}
           >
             <i style={{ '--body-color': `#${body.color.toString(16).padStart(6, '0')}` } as CSSProperties} />
-            {body.name}
+            {t.science.names[body.id]}
           </button>
         ))}
       </div>
       {webglFailed && !selectedId && (
-        <div className="science-fallback-selector" role="group" aria-label="اختر عالمًا" data-testid="science-fallback-selector">
+        <div className="science-fallback-selector" role="group" aria-label={t.science.selectWorld} data-testid="science-fallback-selector">
           {bodies.map((body) => (
-            <button key={body.id} type="button" onClick={() => onSelect(body.id)} data-testid={`button-fallback-select-${body.id}`} aria-label={`استكشف ${body.name}`}>
+            <button key={body.id} type="button" onClick={() => onSelect(body.id)} data-testid={`button-fallback-select-${body.id}`} aria-label={`${t.science.selectWorld}: ${t.science.names[body.id]}`}>
               <i style={{ '--body-color': `#${body.color.toString(16).padStart(6, '0')}` } as CSSProperties} />
-              {body.name}
+              {t.science.names[body.id]}
             </button>
           ))}
         </div>
@@ -746,45 +749,65 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
 }
 
 export default function SciencePage() {
+  const { language, direction, t } = useLanguage();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const body = useMemo(() => bodies.find((item) => item.id === selectedId) ?? null, [selectedId]);
-  const source = useMemo(() => body ? videoSource(videos[body.id] ?? '') : null, [body]);
-  const bodyFacts = body ? facts[body.id] : null;
+  const [videoLanguageOverride, setVideoLanguageOverride] = useState<{ planetId: PlanetId; language: Language } | null>(null);
+  const videoLanguage = videoLanguageOverride && body && videoLanguageOverride.planetId === body.id
+    ? videoLanguageOverride.language
+    : language;
+  const videoUrl = body ? videos[body.id].science[videoLanguage] : '';
+  const selectBody = (id: string) => {
+    if (id !== selectedId) setVideoLanguageOverride(null);
+    setSelectedId(id);
+  };
+  const bodyFacts = body ? t.science.factsByPlanet[body.id] : null;
   return (
-    <main className="science-page" dir="rtl" data-testid="page-science">
-      <ScienceScene selectedId={selectedId} onSelect={setSelectedId} />
-      <div className="science-hint" data-testid="science-hint"><span className="science-hint-pulse" />اضغط على أي كوكب لاستكشافه 👆</div>
-      <div className="science-instruction" aria-hidden="true"><RotateCcw size={14} /> اسحب للدوران · قرّب بإصبعين</div>
+    <main className="science-page" dir={direction} lang={language} data-testid="page-science">
+       <ScienceScene selectedId={selectedId} onSelect={selectBody} />
+      <div className="science-hint" data-testid="science-hint"><span className="science-hint-pulse" />{t.science.hint}</div>
+      <div className="science-instruction" aria-hidden="true"><RotateCcw size={14} /> {t.science.drag}</div>
       {!selectedId && (
         <div className="science-overview-note" data-testid="science-overview-copy">
-          <span>رحلة بين العوالم</span>
-          <strong>تسع حكايات<br />تدور حول الشمس</strong>
-          <small>اختر جرمًا سماويًا لتقترب منه</small>
+          <span>{t.science.overviewKicker}</span>
+          <strong>{t.science.overviewTitle}</strong>
+          <small>{t.science.overviewHint}</small>
         </div>
       )}
       {selectedId && body && bodyFacts && (
         <section className="science-detail" aria-labelledby="science-body-title" data-testid="science-detail-panel">
-          <div className="science-detail-topline"><span><Sparkles size={14} /> عوالم النظام الشمسي</span>
-            <button type="button" className="science-return" onClick={() => setSelectedId(null)} data-testid="button-science-return">
-              <ArrowDownLeft size={15} /> رجوع
+          <div className="science-detail-heading">
+            <h1 id="science-body-title" data-testid="science-body-title">{t.science.names[body.id]}</h1>
+             <button type="button" className="science-return" onClick={() => { setVideoLanguageOverride(null); setSelectedId(null); }} data-testid="button-science-return">
+              {direction === 'rtl' ? <ArrowDownLeft size={15} /> : <ArrowDownRight size={15} />} {t.science.back}
             </button>
           </div>
-          <h1 id="science-body-title" data-testid="science-body-title">{body.name}</h1>
+          <VideoLanguageToggle
+            language={videoLanguage}
+            onChange={(nextLanguage) => body && setVideoLanguageOverride({ planetId: body.id, language: nextLanguage })}
+            label={t.video.language}
+            arabicLabel={t.video.arabic}
+            englishLabel={t.video.english}
+          />
           <div className="science-video" data-testid="science-video-region">
-            {source?.kind === 'youtube'
-              ? <iframe src={source.src} title={`فيديو عن ${body.name}`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen />
-              : source?.kind === 'mp4'
-                ? <video src={source.src} controls playsInline preload="metadata" aria-label={`فيديو عن ${body.name}`} />
-                : <div className="science-video-empty" data-testid="science-video-placeholder"><CirclePlay size={33} strokeWidth={1.4} /><span>مكان الفيديو</span><small>أضف رابط الفيديو من ملف الإعدادات</small></div>}
+            <LocalizedVideo
+              key={`${body.id}-${videoLanguage}-${videoUrl}`}
+              raw={videoUrl}
+              title={t.science.videoTitle(t.science.names[body.id])}
+              emptyLabel={t.science.emptyVideo}
+              placeholderClassName="science-video-empty"
+              mediaClassName="science-video-media"
+              testId="science-video-player"
+            />
           </div>
-          <div className="science-facts" aria-label={`حقائق عن ${body.name}`} data-testid="science-facts">
-            <div><span>البعد عن الشمس</span><strong>{bodyFacts.distance}</strong></div>
-            <div><span>طول اليوم</span><strong>{bodyFacts.day}</strong></div>
-            <div><span>الأقمار المعروفة</span><strong>{bodyFacts.moons}</strong></div>
+          <div className="science-facts" aria-label={t.science.facts(t.science.names[body.id])} data-testid="science-facts">
+            <div><span>{t.science.distance}</span><strong>{bodyFacts.distance}</strong></div>
+            <div><span>{t.science.dayLength}</span><strong>{bodyFacts.day}</strong></div>
+            <div><span>{t.science.moons}</span><strong>{bodyFacts.moons}</strong></div>
           </div>
         </section>
       )}
-      <div className="science-scale" dir="ltr" data-testid="science-model-caption">SOLAR SYSTEM · LIVE MODEL</div>
+      <div className="science-scale" dir="ltr" data-testid="science-model-caption">{t.science.modelCaption}</div>
       <LogoFooter />
     </main>
   );

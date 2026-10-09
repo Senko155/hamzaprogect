@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, ArrowDown, ArrowUp, Flag, Home, Pause, Play, Radio, RotateCcw, Rocket, Settings2, Zap } from 'lucide-react';
 import MissionScene, { type MissionPhase } from './MissionScene';
 import LogoFooter from '../LogoFooter';
+import { useLanguage } from '../../i18n/LanguageContext';
 import './simulation.css';
 
 type Props = { muted: boolean; onToggleMute: () => void; onBackHome: () => void };
@@ -16,24 +17,14 @@ function defaultQuality(): Quality {
     ? 'low'
     : 'medium';
 }
-const phaseLabels: Record<MissionPhase, string> = {
-  ready: 'منصة الإطلاق',
-  countdown: 'العدّ التنازلي',
-  ascent: 'الصعود إلى المدار',
-  orbit: 'المدار الأرضي المنخفض',
-  journey: 'العبور إلى القمر',
-  landing: 'الهبوط القمري',
-  surface: 'سطح القمر',
-  finish: 'اكتمال المهمة',
-};
 const ascentMilestones = [
-  { at: 0, label: 'اشتعال المحركات' },
-  { at: 78, label: 'Max-Q · أقصى ضغط ديناميكي' },
-  { at: 165, label: 'فصل المرحلة الأولى' },
-  { at: 175, label: 'فصل برج الهروب' },
-  { at: 195, label: 'إشعال المرحلة الثانية' },
-  { at: 225, label: 'فصل الغطاء الانسيابي' },
-  { at: 480, label: 'حرق إدخال المدار' },
+  { at: 0 },
+  { at: 78 },
+  { at: 165 },
+  { at: 175 },
+  { at: 195 },
+  { at: 225 },
+  { at: 480 },
 ];
 
 function useMissionAudio(muted: boolean) {
@@ -96,6 +87,10 @@ function useMissionAudio(muted: boolean) {
 }
 
 export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
+  const { language, direction, t } = useLanguage();
+  const sim = t.simulation;
+  const labels = sim.phaseLabels;
+  const controls = sim.controls;
   const [phase,setPhase]=useState<MissionPhase>('ready');
   const [phaseSeconds,setPhaseSeconds]=useState(0);
   const [missionSeconds,setMissionSeconds]=useState(0);
@@ -138,8 +133,8 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
     },220);
   };
   useEffect(()=>()=>{if(startTimerRef.current!==undefined)window.clearTimeout(startTimerRef.current);},[]);
-  const orbitSkip=()=>{audio.tone(660,.24,.1);setRadio('تم تأكيد المدار. أنظمة المركبة مستقرة.');begin('orbit');};
-  const triggerTli=()=>{audio.tone(330,.35,.12);audio.tone(660,.4,.07);setRadio('تم إشعال محرك المرحلة العليا. المسار إلى القمر مؤكد.');begin('journey');};
+  const orbitSkip=()=>{audio.tone(660,.24,.1);setRadio(sim.radio.orbitConfirmed);begin('orbit');};
+  const triggerTli=()=>{audio.tone(330,.35,.12);audio.tone(660,.4,.07);setRadio(sim.radio.tliConfirmed);begin('journey');};
 
   useEffect(()=>{
     if(paused||phase==='ready'||phase==='finish')return;
@@ -152,20 +147,20 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
 
   useEffect(()=>{
     if(paused)return;
-    if(phase==='countdown'&&phaseSeconds>=5){audio.tone(58,1.6,.08);setRadio('إشعال المحركات — انطلاق!');begin('ascent');}
-    if(phase==='ascent'&&phaseSeconds>=510){setRadio('وصلنا إلى المدار الأرضي المنخفض.');begin('orbit');}
-    if(phase==='ascent'&&phaseSeconds===78)setRadio('Max-Q — تجاوزنا أقصى ضغط ديناميكي. المسار مستقر.');
-    if(phase==='ascent'&&phaseSeconds===165)setRadio('انفصال المرحلة الأولى. تتهيأ المرحلة الثانية للاشتعال.');
-    if(phase==='ascent'&&phaseSeconds===195)setRadio('إشعال المرحلة الثانية. متابعة الصعود نحو المدار.');
-    if(phase==='ascent'&&phaseSeconds===175)setRadio('انفصال برج الهروب. استمر الصعود بأمان.');
-    if(phase==='ascent'&&phaseSeconds===225)setRadio('انفصال الغطاء الانسيابي.');
-    if(phase==='ascent'&&phaseSeconds===480)setRadio('بدء حرق إدخال المدار الأرضي المنخفض.');
-    if(phase==='journey'&&phaseSeconds===145)setRadio('بدء حرق إدخال المدار القمري. استعدوا للهبوط.');
-    if(phase==='journey'&&phaseSeconds>=155){setRadio('اقتربنا من القمر. ابدأ التحضير للهبوط.');begin('landing');}
-    if(phase==='landing'&&phaseSeconds>=58){setRadio('ملامسة سطح القمر. الهبوط آمن.');begin('surface');}
+    if(phase==='countdown'&&phaseSeconds>=5){audio.tone(58,1.6,.08);setRadio(sim.radio.enginesIgnited);begin('ascent');}
+    if(phase==='ascent'&&phaseSeconds>=510){setRadio(sim.radio.reachedOrbit);begin('orbit');}
+    if(phase==='ascent'&&phaseSeconds===78)setRadio(sim.radio.maxQ);
+    if(phase==='ascent'&&phaseSeconds===165)setRadio(sim.radio.firstStage);
+    if(phase==='ascent'&&phaseSeconds===195)setRadio(sim.radio.secondStage);
+    if(phase==='ascent'&&phaseSeconds===175)setRadio(sim.radio.escapeTower);
+    if(phase==='ascent'&&phaseSeconds===225)setRadio(sim.radio.fairing);
+    if(phase==='ascent'&&phaseSeconds===480)setRadio(sim.radio.orbitBurn);
+    if(phase==='journey'&&phaseSeconds===145)setRadio(sim.radio.lunarBurn);
+    if(phase==='journey'&&phaseSeconds>=155){setRadio(sim.radio.nearMoon);begin('landing');}
+    if(phase==='landing'&&phaseSeconds>=58){setRadio(sim.radio.safeLanding);begin('surface');}
     if(phase==='orbit'&&phaseSeconds===2)audio.tone(880,.12,.055);
-    if(phase==='journey'&&phaseSeconds===70)setRadio('رسالة منتصف الرحلة: الأرض تبتعد، والقمر يملأ النافذة.');
-  },[phase,phaseSeconds,paused,audio]);
+    if(phase==='journey'&&phaseSeconds===70)setRadio(sim.radio.midJourney);
+  },[phase,phaseSeconds,paused,audio,sim]);
 
   useEffect(()=>{
     const onVisibility=()=>{if(document.hidden&&phaseRef.current!=='ready'&&phaseRef.current!=='finish')setPaused(true);};
@@ -181,8 +176,8 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
   },[phase,phaseSeconds,audio]);
 
   useEffect(()=>{
-    if(phase==='orbit')setRadio('مهمتك الآن: استكشاف القمر 🌕');
-  },[phase]);
+    if(phase==='orbit')setRadio(sim.radio.exploreMoon);
+  },[phase,sim]);
 
   useEffect(()=>{
     if(phase!=='surface')return;
@@ -216,146 +211,146 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
   const journeyHour = Math.floor(journeyElapsedSeconds / 3600) % 24;
   const journeyMinute = Math.floor(journeyElapsedSeconds / 60) % 60;
   const missionTime=phase==='journey'
-    ? `DAY ${journeyDay} · ${String(journeyHour).padStart(2,'0')}h ${String(journeyMinute).padStart(2,'0')}m`
+     ? `${sim.controls.dayWord} ${journeyDay} · ${String(journeyHour).padStart(2,'0')}${controls.units.hour} ${String(journeyMinute).padStart(2,'0')}${controls.units.minuteShort}`
     : phase==='orbit'
       ? `T+ ${String(Math.floor(phaseSeconds/60)).padStart(2,'0')}:${String(phaseSeconds%60).padStart(2,'0')}`
       : `T+ ${String(Math.floor(missionSeconds/60)).padStart(2,'0')}:${String(missionSeconds%60).padStart(2,'0')}`;
   const countdown=5-phaseSeconds;
   const changeThrottle=(value:number)=>setThrottle(Math.max(.15,Math.min(1,value)));
   const landNow=()=>{
-    if(throttle<.28&&!assisted){setRadio('زد قوة الدفع قبل الهبوط.');audio.tone(190,.22,.06);return;}
-    audio.tone(520,.3,.08);setRadio('ملامسة سطح القمر — هبوط آمن.');begin('surface');
+    if(throttle<.28&&!assisted){setRadio(sim.radio.increaseThrust);audio.tone(190,.22,.06);return;}
+    audio.tone(520,.3,.08);setRadio(sim.radio.safeTouchdown);begin('surface');
   };
   const plantFlag=(event:React.FormEvent)=>{
-    event.preventDefault();const clean=name.trim().slice(0,20)||'رائد الفضاء';
+    event.preventDefault();const clean=name.trim().slice(0,20)||controls.emptyAstronaut;
     setPlantedName(clean);setFlagForm(false);audio.tone(740,.24,.07);begin('finish');
   };
   const goWalk=(step:number)=>{setWalked(v=>Math.min(100,Math.max(0,v+step)));audio.tone(210,.08,.025);};
   const jump=()=>{setJumpStarted(performance.now());audio.tone(250,.1,.035);};
 
-  const stageTitle=phase==='orbit'?'مهمتك الآن: استكشاف القمر 🌕':phaseLabels[phase];
+  const stageTitle=phase==='orbit'?sim.stageTitleOrbit:labels[phase];
   const stageCopy:Record<MissionPhase,string>={
-    ready:'المركبة جاهزة على منصة الإطلاق. أعدّ نفسك للرحلة من الأرض إلى سطح القمر.',
-    countdown:`بدء تسلسل الإطلاق بعد ${Math.max(0,countdown)} ثوانٍ. راقب المحركات عند الصفر.`,
-    ascent:'رحلة صعود حقيقية بزمن المهمة. يمكنك تخطي الصعود إلى المدار في أي لحظة.',
-    orbit:'أنت في مدار أرضي منخفض. جهّز المركبة لحقن المسار نحو القمر.',
-    journey:'عبور سريع عبر ثلاثة أيام من زمن المهمة. راقب الأرض وهي تصغر والقمر وهو يقترب.',
-    landing:'وجّه المركبة ببطء نحو السطح. اضبط الميل والدفع أو فعّل الهبوط المساعد.',
-    surface:'اخرج من المركبة واتجه إلى الموقع المحدد لرفع راية المهمة.',
-    finish:`وصل ${plantedName||'رائد الفضاء'} إلى سطح القمر وأكمل المهمة بنجاح.`,
+    ready:sim.copy.ready,
+    countdown:sim.copy.countdown(Math.max(0,countdown)),
+    ascent:sim.copy.ascent,
+    orbit:sim.copy.orbit,
+    journey:sim.copy.journey,
+    landing:sim.copy.landing,
+    surface:sim.copy.surface,
+    finish:sim.copy.finish(plantedName||controls.emptyAstronaut),
   };
   return (
-    <main className={`mission-screen${phase==='countdown'&&phaseSeconds>=2&&!paused?' is-countdown':''}${phase!=='ready'&&phase!=='finish'?' is-gameplay':''}${startPanelLeaving?' is-start-leaving':''}`} dir="rtl" data-phase={phase} data-testid="page-simulation">
-      <MissionScene phase={phase} phaseSeconds={phaseSeconds} missionSeconds={missionSeconds} firstPerson={firstPerson} paused={paused} quality={quality} showFps={showFps} tilt={tilt} throttle={throttle} walking={walked} jumpStarted={jumpStarted} flagName={plantedName} onLoaded={()=>setLoaded(true)} />
-      {!loaded&&<div className="mission-loading" role="status" data-testid="status-simulation-loading"><span className="mission-loading-mark"/><span>تهيئة مركبة المهمة ثلاثية الأبعاد…</span></div>}
+    <main className={`mission-screen${phase==='countdown'&&phaseSeconds>=2&&!paused?' is-countdown':''}${phase!=='ready'&&phase!=='finish'?' is-gameplay':''}${startPanelLeaving?' is-start-leaving':''}`} dir={direction} lang={language} data-phase={phase} data-testid="page-simulation">
+      <MissionScene phase={phase} phaseSeconds={phaseSeconds} missionSeconds={missionSeconds} firstPerson={firstPerson} paused={paused} quality={quality} showFps={showFps} tilt={tilt} throttle={throttle} walking={walked} jumpStarted={jumpStarted} flagName={plantedName} language={language} flagInscription={controls.flagInscription} emptyAstronaut={controls.emptyAstronaut} sceneDescription={controls.sceneDescription} onLoaded={()=>setLoaded(true)} />
+      {!loaded&&<div className="mission-loading" role="status" data-testid="status-simulation-loading"><span className="mission-loading-mark"/><span>{sim.loading}</span></div>}
       <div className="mission-topline">
-        <div><div className="mission-kicker">WORLD SPACE WEEK · LUNAR MISSION 2026</div><h1 className="mission-heading">رحلة أبولو إلى القمر</h1></div>
+        <div><div className="mission-kicker">{sim.kicker}</div><h1 className="mission-heading">{sim.title}</h1></div>
         <div className="mission-tools">
-          {phase!=='ready'&&phase!=='finish'&&<button className="mission-button" type="button" onClick={()=>setPaused(p=>!p)} aria-pressed={paused} data-testid="button-simulation-pause">{paused?<Play size={16}/>:<Pause size={16}/>}<span>{paused?'استئناف':'إيقاف مؤقت'}</span></button>}
-          <button className="mission-button mission-settings-toggle" type="button" onClick={()=>setSettingsOpen(open=>!open)} aria-label="إعدادات المحاكاة" aria-expanded={settingsOpen} data-testid="button-simulation-settings"><Settings2 size={16}/><span>الإعدادات</span></button>
+          {phase!=='ready'&&phase!=='finish'&&<button className="mission-button" type="button" onClick={()=>setPaused(p=>!p)} aria-pressed={paused} data-testid="button-simulation-pause">{paused?<Play size={16}/>:<Pause size={16}/>}<span>{paused?sim.resume:sim.pause}</span></button>}
+          <button className="mission-button mission-settings-toggle" type="button" onClick={()=>setSettingsOpen(open=>!open)} aria-label={sim.settings} aria-expanded={settingsOpen} data-testid="button-simulation-settings"><Settings2 size={16}/><span>{sim.settings}</span></button>
         </div>
       </div>
-      {settingsOpen&&<div className="mission-settings" role="group" aria-label="إعدادات المحاكاة">
-        <label htmlFor="simulation-quality">جودة الرسوم</label>
+      {settingsOpen&&<div className="mission-settings" role="group" aria-label={sim.settings}>
+        <label htmlFor="simulation-quality">{sim.quality}</label>
         <select id="simulation-quality" className="mission-select" value={quality} onChange={event=>setQuality(event.target.value as Quality)} data-testid="select-simulation-quality">
-          <option value="low">منخفضة</option><option value="medium">متوسطة</option><option value="high">عالية</option>
+          <option value="low">{sim.qualities.low}</option><option value="medium">{sim.qualities.medium}</option><option value="high">{sim.qualities.high}</option>
         </select>
-        <label className="mission-fps-toggle"><input type="checkbox" checked={showFps} onChange={event=>setShowFps(event.target.checked)} data-testid="toggle-simulation-fps"/>إظهار عداد FPS</label>
+        <label className="mission-fps-toggle"><input type="checkbox" checked={showFps} onChange={event=>setShowFps(event.target.checked)} data-testid="toggle-simulation-fps"/>{sim.showFps}</label>
       </div>}
       <div className="mission-body">
         <aside className="mission-side">
           <section className="mission-panel" aria-live="polite">
             <h2 className="mission-stage-name"><Rocket size={18}/>{stageTitle}</h2>
             <p className="mission-copy">{stageCopy[phase]}</p>
-            <div className="mission-progress" aria-label="تقدم المرحلة"><i style={{width:`${Math.max(phase==='ready'?0:4,phaseProgress*100)}%`}}/></div>
+            <div className="mission-progress" aria-label={controls.phaseProgress}><i style={{width:`${Math.max(phase==='ready'?0:4,phaseProgress*100)}%`}}/></div>
             <div className="mission-stage-controls">
-              {phase==='ascent'&&<button className="mission-button purple" type="button" onClick={orbitSkip} data-testid="button-skip-to-orbit"><Zap size={16}/>Skip to orbit · تخطّي إلى المدار</button>}
+              {phase==='ascent'&&<button className="mission-button purple" type="button" onClick={orbitSkip} data-testid="button-skip-to-orbit"><Zap size={16}/>{controls.skipOrbit}</button>}
               {phase==='orbit'&&(orbitReady
-                ? <button className="mission-button primary" type="button" onClick={triggerTli} data-testid="button-tli">Trans-Lunar Injection – انطلق نحو القمر</button>
-                : <p className="mission-orbit-hold" role="status" data-testid="text-orbit-hold">إكمال دورتين ونصف حول الأرض · {phaseSeconds}/45 ثانية</p>)}
+                ? <button className="mission-button primary" type="button" onClick={triggerTli} data-testid="button-tli">{controls.tli}</button>
+                : <p className="mission-orbit-hold" role="status" data-testid="text-orbit-hold">{controls.orbitHold(phaseSeconds)}</p>)}
               {phase==='landing'&&<>
                 <div className="mission-stage-controls">
-                  <button className="mission-button" type="button" onClick={()=>setTilt(v=>Math.max(-.55,v-.12))} aria-label="إمالة المركبة يساراً" data-testid="button-tilt-left"><ArrowDown size={15}/>إمالة يسار</button>
-                  <button className="mission-button" type="button" onClick={()=>setTilt(v=>Math.min(.55,v+.12))} aria-label="إمالة المركبة يميناً" data-testid="button-tilt-right">إمالة يمين<ArrowUp size={15}/></button>
+                  <button className="mission-button" type="button" onClick={()=>setTilt(v=>Math.max(-.55,v-.12))} aria-label={controls.tiltLeftAria} data-testid="button-tilt-left"><ArrowDown size={15}/>{controls.tiltLeft}</button>
+                  <button className="mission-button" type="button" onClick={()=>setTilt(v=>Math.min(.55,v+.12))} aria-label={controls.tiltRightAria} data-testid="button-tilt-right">{controls.tiltRight}<ArrowUp size={15}/></button>
                 </div>
-                <label className="mission-copy" htmlFor="landing-throttle">قوة الدفع · {Math.round(throttle*100)}%</label>
-                <input id="landing-throttle" className="mission-input" type="range" min=".15" max="1" step=".01" value={throttle} onChange={e=>changeThrottle(Number(e.target.value))} aria-label="قوة دفع الهبوط" data-testid="input-landing-throttle"/>
-                <button className={`mission-button ${assisted?'primary':'purple'}`} type="button" onClick={()=>setAssisted(v=>!v)} aria-pressed={assisted} data-testid="button-assisted-landing">{assisted?'الهبوط المساعد: يعمل':'تفعيل الهبوط المساعد'}</button>
-                <button className="mission-button primary" type="button" onClick={landNow} data-testid="button-confirm-landing">تأكيد الهبوط</button>
+                <label className="mission-copy" htmlFor="landing-throttle">{controls.thrust} · {Math.round(throttle*100)}%</label>
+                <input id="landing-throttle" className="mission-input" type="range" min=".15" max="1" step=".01" value={throttle} onChange={e=>changeThrottle(Number(e.target.value))} aria-label={controls.thrust} data-testid="input-landing-throttle"/>
+                <button className={`mission-button ${assisted?'primary':'purple'}`} type="button" onClick={()=>setAssisted(v=>!v)} aria-pressed={assisted} data-testid="button-assisted-landing">{assisted?controls.assistedOn:controls.assistedOff}</button>
+                <button className="mission-button primary" type="button" onClick={landNow} data-testid="button-confirm-landing">{controls.confirmLanding}</button>
               </>}
               {phase==='surface'&&<div className="mission-stage-controls">
-                {!flagForm?<button className="mission-button primary" type="button" onClick={()=>setFlagForm(true)} disabled={walked<95} aria-describedby="flag-site-status" data-testid="button-open-flag-form"><Flag size={16}/>ارفع العلم</button>:<form className="mission-form" onSubmit={plantFlag}>
-                  <input className="mission-input" value={name} onChange={e=>setName(e.target.value.slice(0,20))} maxLength={20} minLength={1} required autoFocus placeholder="اسم رائد الفضاء" aria-label="اسم رائد الفضاء" data-testid="input-astronaut-name"/>
-                  <button className="mission-button primary" type="submit" disabled={!name.trim()} data-testid="button-plant-flag">اغرس العلم</button>
+                {!flagForm?<button className="mission-button primary" type="button" onClick={()=>setFlagForm(true)} disabled={walked<95} aria-describedby="flag-site-status" data-testid="button-open-flag-form"><Flag size={16}/>{controls.raiseFlag}</button>:<form className="mission-form" onSubmit={plantFlag}>
+                  <input className="mission-input" value={name} onChange={e=>setName(e.target.value.slice(0,20))} maxLength={20} minLength={1} required autoFocus placeholder={controls.astronautPlaceholder} aria-label={controls.astronautPlaceholder} data-testid="input-astronaut-name"/>
+                  <button className="mission-button primary" type="submit" disabled={!name.trim()} data-testid="button-plant-flag">{controls.plantFlag}</button>
                 </form>}
-                <span id="flag-site-status" className="mission-stage-status">{flagForm?`${name.length}/20`:walked<95?'اتجه إلى الموقع المحدد لفتح العلم':`موقع العلم · ${walked}%`}</span>
+                <span id="flag-site-status" className="mission-stage-status">{flagForm?`${name.length}/20`:walked<95?controls.moveToFlag:controls.flagLocation(walked)}</span>
               </div>}
             </div>
             <div className="mission-readouts">
-              <div className="mission-readout"><span className="mission-readout-label">MISSION ELAPSED</span><span className="mission-readout-value" data-testid="text-mission-time">{Math.floor(missionSeconds/60)}:{String(missionSeconds%60).padStart(2,'0')}</span></div>
-              <div className="mission-readout"><span className="mission-readout-label">MISSION CLOCK</span><span className="mission-readout-value" data-testid="text-mission-clock">{missionTime}</span></div>
-              {phase!=='ready'&&phase!=='countdown'&&<div className="mission-readout"><span className="mission-readout-label">ALTITUDE</span><span className="mission-readout-value" data-testid="text-altitude">{phase==='landing'?altitude.toFixed(1):altitude} km</span></div>}
-              {phase!=='ready'&&phase!=='countdown'&&<div className="mission-readout"><span className="mission-readout-label">VELOCITY</span><span className="mission-readout-value" data-testid="text-speed">{speed.toLocaleString('en-US')} km/h</span></div>}
-              {phase==='landing'&&<div className="mission-readout"><span className="mission-readout-label">VERT SPEED / FUEL</span><span className="mission-readout-value" data-testid="text-landing-speed">{Math.round((1-phaseProgress)*18)} m/s · {fuelPercent}%</span></div>}
+              <div className="mission-readout"><span className="mission-readout-label">{controls.elapsed}</span><span className="mission-readout-value" data-testid="text-mission-time">{Math.floor(missionSeconds/60)}:{String(missionSeconds%60).padStart(2,'0')}</span></div>
+              <div className="mission-readout"><span className="mission-readout-label">{controls.clock}</span><span className="mission-readout-value" data-testid="text-mission-clock">{missionTime}</span></div>
+              {phase!=='ready'&&phase!=='countdown'&&<div className="mission-readout"><span className="mission-readout-label">{controls.altitude}</span><span className="mission-readout-value" data-testid="text-altitude">{phase==='landing'?altitude.toFixed(1):altitude} {controls.units.km}</span></div>}
+              {phase!=='ready'&&phase!=='countdown'&&<div className="mission-readout"><span className="mission-readout-label">{controls.velocity}</span><span className="mission-readout-value" data-testid="text-speed">{speed.toLocaleString(language==='ar'?'ar-SA':'en-US')} {controls.units.kmh}</span></div>}
+              {phase==='landing'&&<div className="mission-readout"><span className="mission-readout-label">{controls.verticalSpeedFuel}</span><span className="mission-readout-value" data-testid="text-landing-speed">{Math.round((1-phaseProgress)*18)} {controls.units.ms} · {fuelPercent}%</span></div>}
               {phase==='journey'&&<>
-                <div className="mission-readout"><span className="mission-readout-label">EARTH DISTANCE</span><span className="mission-readout-value" data-testid="text-distance-from-earth">{distanceFromEarth.toLocaleString('en-US')} km</span></div>
-                <div className="mission-readout"><span className="mission-readout-label">MOON RANGE</span><span className="mission-readout-value" data-testid="text-distance-to-moon">{distanceToMoon.toLocaleString('en-US')} km</span></div>
+                <div className="mission-readout"><span className="mission-readout-label">{controls.earthDistance}</span><span className="mission-readout-value" data-testid="text-distance-from-earth">{distanceFromEarth.toLocaleString(language==='ar'?'ar-SA':'en-US')} {controls.units.km}</span></div>
+                <div className="mission-readout"><span className="mission-readout-label">{controls.moonRange}</span><span className="mission-readout-value" data-testid="text-distance-to-moon">{distanceToMoon.toLocaleString(language==='ar'?'ar-SA':'en-US')} {controls.units.km}</span></div>
               </>}
-              {(phase==='journey'||phase==='surface'||phase==='finish')&&<div className="mission-readout"><span className="mission-readout-label">DISTANCE TRAVELLED</span><span className="mission-readout-value" data-testid="text-distance">{distanceFromEarth.toLocaleString('en-US')} km</span></div>}
+              {(phase==='journey'||phase==='surface'||phase==='finish')&&<div className="mission-readout"><span className="mission-readout-label">{controls.travelled}</span><span className="mission-readout-value" data-testid="text-distance">{distanceFromEarth.toLocaleString(language==='ar'?'ar-SA':'en-US')} {controls.units.km}</span></div>}
             </div>
           </section>
           {(phase==='ascent'||phase==='orbit')&&<section className="mission-panel">
-            <div className="mission-kicker"><Activity size={13}/> FLIGHT DYNAMICS</div>
-            <p className="mission-copy" style={{marginTop:8}}>{phase==='ascent'?(ascentMilestones.filter(item=>item.at<=phaseSeconds).at(-1)?.label??'استعداد للإقلاع'):'Telemetry link nominal · all systems green'}</p>
-            {phase==='ascent'&&<div className="mission-readout" style={{marginTop:12}}><span className="mission-readout-label">MAX-Q</span><span className="mission-readout-value" data-testid="text-max-q">{phaseSeconds>=78?'PASSED':'T+ 01:18 · 33.4 kPa'}</span></div>}
-            {phase==='ascent'&&<div className="mission-timeline" aria-label="مراحل الصعود">
+            <div className="mission-kicker"><Activity size={13}/> {controls.dynamics}</div>
+            <p className="mission-copy" style={{marginTop:8}}>{phase==='ascent'?sim.milestones[Math.max(0,ascentMilestones.findLastIndex(item=>item.at<=phaseSeconds))]??controls.takeoffReady:controls.telemetryNominal}</p>
+            {phase==='ascent'&&<div className="mission-readout" style={{marginTop:12}}><span className="mission-readout-label">MAX-Q</span><span className="mission-readout-value" data-testid="text-max-q">{phaseSeconds>=78?controls.maxQ:controls.launchMaxQ}</span></div>}
+            {phase==='ascent'&&<div className="mission-timeline" aria-label={controls.stages}>
               {ascentMilestones.map((milestone,index)=>{
                 const current=phaseSeconds>=milestone.at&&(index===ascentMilestones.length-1||phaseSeconds<ascentMilestones[index+1].at);
                 const done=phaseSeconds>=milestone.at;
                 return <div className={`mission-timeline-item${done?' done':''}${current?' current':''}`} key={milestone.at} data-testid={`milestone-${milestone.at}`}>
-                  <i aria-hidden="true"/><span dir={milestone.label.startsWith('Max-Q')?'ltr':'rtl'}>{milestone.label}</span><b dir="ltr">T+ {String(Math.floor(milestone.at/60)).padStart(2,'0')}:{String(milestone.at%60).padStart(2,'0')}</b>
+                  <i aria-hidden="true"/><span dir={milestone.at===78?'ltr':direction}>{sim.milestones[index]}</span><b dir="ltr">T+ {String(Math.floor(milestone.at/60)).padStart(2,'0')}:{String(milestone.at%60).padStart(2,'0')}</b>
                 </div>;
               })}
             </div>}
           </section>}
-          {radio&&<section className="mission-panel" role="status" data-testid="text-mission-radio"><div className="mission-kicker"><Radio size={13}/> MISSION CONTROL</div><p className="mission-copy" style={{marginTop:8}}>{radio}</p></section>}
+          {radio&&<section className="mission-panel" role="status" data-testid="text-mission-radio"><div className="mission-kicker"><Radio size={13}/> {controls.controlCenter}</div><p className="mission-copy" style={{marginTop:8}}>{radio}</p></section>}
         </aside>
-        <section className="mission-view mission-glass" aria-label="مشهد الرحلة الفضائية">
+        <section className="mission-view mission-glass" aria-label={sim.title}>
           {phase==='ready'&&<div className="mission-center-action">
-            <button className="mission-button primary" type="button" onClick={startCountdown} disabled={startPanelLeaving} data-testid="button-start-countdown"><Rocket size={19}/>اضغط لبدء العد التنازلي</button>
-            <span>مركز التحكم · جميع الأنظمة جاهزة</span>
+            <button className="mission-button primary" type="button" onClick={startCountdown} disabled={startPanelLeaving} data-testid="button-start-countdown"><Rocket size={19}/>{controls.startCountdown}</button>
+            <span>{controls.allSystemsReady}</span>
           </div>}
           {phase==='countdown'&&<div className="mission-center-countdown" aria-live="assertive" data-testid="text-countdown">
             <strong>{Math.max(0,countdown)}</strong>
           </div>}
            {firstPerson&&<div className={`mission-cockpit${phase==='countdown'||phase==='ascent'?' is-vibrating':''}`} aria-hidden="true"/>}
            {phase==='ascent'&&<div className="mission-atmosphere-pass" aria-hidden="true" style={{opacity:Math.max(0,1-Math.abs((phaseSeconds-232)/18))*.72}}/>}
-            <div className="mission-view-meta"><span className="mission-chip">{phaseLabels[phase].toUpperCase()}</span><span className="mission-chip">{paused?'PAUSED':'LIVE TELEMETRY'}</span>{!firstPerson&&<span className="mission-chip camera-help" dir="rtl">اسحب للتدوير · قرّب إصبعين للتكبير</span>}</div>
+             <div className="mission-view-meta"><span className="mission-chip">{labels[phase].toUpperCase()}</span><span className="mission-chip">{paused?controls.paused:controls.liveTelemetry}</span>{!firstPerson&&<span className="mission-chip camera-help" dir={direction}>{controls.dragCamera}</span>}</div>
           <div className="mission-hud">
-            <div className="mission-hud-note"><small>MISSION CONTROL · 2026</small>{phase==='orbit'?'مهمتك الآن: استكشاف القمر 🌕':radio||'أنظمة الرحلة مستقرة — استمر في المهمة'}</div>
-            <div className="mission-camera" role="group" aria-label="اختيار الكاميرا">
-              <button type="button" onClick={()=>setFirstPerson(false)} aria-pressed={!firstPerson} data-testid="button-camera-third">Third person</button>
-              <button type="button" onClick={()=>setFirstPerson(true)} aria-pressed={firstPerson} data-testid="button-camera-first">First person</button>
+             <div className="mission-hud-note"><small>{controls.controlCenter} · 2026</small>{phase==='orbit'?sim.radio.exploreMoon:radio||controls.flightStable}</div>
+             <div className="mission-camera" role="group" aria-label={controls.camera}>
+               <button type="button" onClick={()=>setFirstPerson(false)} aria-pressed={!firstPerson} data-testid="button-camera-third">{controls.thirdPerson}</button>
+               <button type="button" onClick={()=>setFirstPerson(true)} aria-pressed={firstPerson} data-testid="button-camera-first">{controls.firstPerson}</button>
             </div>
           </div>
-          {phase==='surface'&&<div className="mission-touch" aria-label="حركة رائد الفضاء">
-            <button className="mission-button" type="button" onClick={()=>goWalk(16)} aria-label="تحرك للأمام" data-testid="button-move-forward"><ArrowUp size={18}/></button>
-            <button className="mission-button" type="button" onClick={jump} aria-label="اقفز" data-testid="button-lunar-jump">قفز</button>
-            <button className="mission-button" type="button" onClick={()=>goWalk(22)} aria-label="تحرك نحو العلم" data-testid="button-move-flag"><Flag size={16}/></button>
+          {phase==='surface'&&<div className="mission-touch" aria-label={controls.moveAstronaut}>
+            <button className="mission-button" type="button" onClick={()=>goWalk(16)} aria-label={controls.moveForward} data-testid="button-move-forward"><ArrowUp size={18}/></button>
+            <button className="mission-button" type="button" onClick={jump} aria-label={controls.jump} data-testid="button-lunar-jump">{controls.jump}</button>
+            <button className="mission-button" type="button" onClick={()=>goWalk(22)} aria-label={controls.moveTowardFlag} data-testid="button-move-flag"><Flag size={16}/></button>
           </div>}
           {phase==='finish'&&<div className="mission-success">
             <div className="mission-success-card mission-panel">
-              <div className="mission-kicker" style={{justifyContent:'center'}}>MISSION COMPLETE · 2026</div>
-              <h2 data-testid="heading-mission-success">تمت المهمة بنجاح! 🎉</h2>
-              <p>زرعت {plantedName||'رائد الفضاء'} راية المهمة على سطح القمر. أثرٌ صغير، وخطوة عظيمة.</p>
+              <div className="mission-kicker" style={{justifyContent:'center'}}>{controls.missionComplete}</div>
+              <h2 data-testid="heading-mission-success">{controls.success}</h2>
+              <p>{sim.controls.successCopy(plantedName||controls.emptyAstronaut)}</p>
               <div className="mission-readouts">
-                <div className="mission-readout"><span className="mission-readout-label">ELAPSED</span><span className="mission-readout-value" data-testid="text-finish-elapsed">{Math.floor(missionSeconds/60)} min</span></div>
-                 <div className="mission-readout"><span className="mission-readout-label">DISTANCE</span><span className="mission-readout-value" data-testid="text-finish-distance">{distanceFromEarth.toLocaleString('en-US')} km</span></div>
-                <div className="mission-readout" style={{gridColumn:'1/-1'}}><span className="mission-readout-label">ASTRONAUT</span><span className="mission-readout-value" data-testid="text-finish-name">{plantedName}</span></div>
+                <div className="mission-readout"><span className="mission-readout-label">{controls.finishElapsed}</span><span className="mission-readout-value" data-testid="text-finish-elapsed">{Math.floor(missionSeconds/60)} {controls.units.minute}</span></div>
+                 <div className="mission-readout"><span className="mission-readout-label">{controls.distance}</span><span className="mission-readout-value" data-testid="text-finish-distance">{distanceFromEarth.toLocaleString(language==='ar'?'ar-SA':'en-US')} {controls.units.km}</span></div>
+                <div className="mission-readout" style={{gridColumn:'1/-1'}}><span className="mission-readout-label">{controls.astronaut}</span><span className="mission-readout-value" data-testid="text-finish-name">{plantedName}</span></div>
               </div>
               <div className="mission-success-actions">
-                <button className="mission-button primary" type="button" onClick={restart} data-testid="button-replay"><RotateCcw size={16}/>العب مرة أخرى</button>
-                <button className="mission-button" type="button" onClick={onBackHome} data-testid="button-finish-home"><Home size={16}/>الرئيسية</button>
+                <button className="mission-button primary" type="button" onClick={restart} data-testid="button-replay"><RotateCcw size={16}/>{controls.replay}</button>
+                <button className="mission-button" type="button" onClick={onBackHome} data-testid="button-finish-home"><Home size={16}/>{controls.home}</button>
               </div>
             </div>
           </div>}

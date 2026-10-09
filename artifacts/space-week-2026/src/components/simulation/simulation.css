@@ -4,7 +4,6 @@
   min-height: 100dvh;
   padding: 112px clamp(14px, 4vw, 58px) 24px;
   color: #eef6ff;
-  direction: rtl;
   overflow-x: hidden;
   overflow-y: auto;
   isolation: isolate;
@@ -395,4 +394,15 @@
   .mission-screen.is-gameplay .mission-hud-note small { font-size:8px; }
   .mission-screen.is-gameplay .mission-chip { padding:6px 7px; font-size:7px; }
   .mission-screen.is-gameplay .mission-side>.mission-panel:first-child { padding-inline:0; }
+}
+
+.mission-screen[dir="ltr"] .mission-hud-note { border-right:0; border-left:2px solid #6ce4ff; border-radius:10px 4px 4px 10px; }
+.mission-screen[dir="ltr"] .mission-settings { left:auto; right:clamp(14px,4vw,58px); }
+.mission-screen[dir="ltr"] .mission-fps-counter { right:auto; left:12px; }
+@media(max-width:760px) {
+  .mission-screen[dir="ltr"].is-gameplay .mission-topline { left:12px; right:12px; }
+  .mission-screen[dir="ltr"].is-gameplay .mission-side { left:9px; right:9px; }
+  .mission-screen[dir="ltr"][data-phase="surface"].is-gameplay .mission-touch { left:10px; right:auto; }
+  .mission-screen[dir="ltr"][data-phase="surface"].is-gameplay .mission-camera { left:0; right:auto; }
+  .mission-screen[dir="ltr"] .mission-settings { left:auto; right:10px; }
 }

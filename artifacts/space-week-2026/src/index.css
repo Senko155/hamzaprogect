@@ -331,7 +331,7 @@ button { font: inherit; }
 .space-canvas canvas { display:block; width:100%; height:100%; }
 .space-vignette { position:absolute; inset:0; z-index:1; pointer-events:none; background:linear-gradient(90deg,rgba(5,7,16,.55),transparent 60%),linear-gradient(0deg,rgba(5,7,16,.62),transparent 38%),radial-gradient(ellipse,transparent 37%,rgba(5,7,16,.34) 100%); }
 .space-vignette:after { content:""; position:absolute; inset:0; opacity:.13; pointer-events:none; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.23'/%3E%3C/svg%3E"); }
-.topbar { position:absolute; z-index:4; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:27px clamp(22px,5vw,76px); direction:rtl; }
+.topbar { position:absolute; z-index:4; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:center; padding:27px clamp(22px,5vw,76px); }
 .brand-mark { display:flex; align-items:center; gap:13px; color:#edfaff; text-decoration:none; }
 .brand-emblem { width:39px;height:39px;border:1px solid rgba(110,225,255,.55);border-radius:50%;display:grid;place-items:center;color:#76e8ff;box-shadow:inset 0 0 17px #31bdd026; }
 .brand-copy { display:flex; flex-direction:column; font-weight:700; font-size:14px; line-height:1.4; letter-spacing:.01em; }
@@ -340,7 +340,7 @@ button { font: inherit; }
 .icon-control { display:flex;align-items:center;justify-content:center;gap:9px; min-width:43px;height:43px;padding:0 14px;border-radius:999px;border:1px solid rgba(185,215,255,.19);background:rgba(14,20,39,.48);color:#dbe9fc;backdrop-filter:blur(16px);cursor:pointer;transition:background .25s,border-color .25s,transform .25s; }
 .icon-control:hover {background:rgba(49,79,115,.42);border-color:#64dfff80;transform:translateY(-2px)}
 .clock-readout { direction:ltr;font:11px var(--app-font-mono);letter-spacing:.08em;color:#9aabc2;padding-right:8px; }
-.home-content {position:absolute;z-index:3;inset:0;display:flex;align-items:center;justify-content:flex-start;padding:110px clamp(26px,10.6vw,164px) 88px;direction:rtl;pointer-events:none}
+.home-content {position:absolute;z-index:3;inset:0;display:flex;align-items:center;justify-content:flex-start;padding:110px clamp(26px,10.6vw,164px) 88px;pointer-events:none}
 .hero-copy {width:min(550px,51vw);pointer-events:auto;animation:arrive .95s cubic-bezier(.2,.7,.2,1) both;}
 .eyebrow {display:flex;align-items:center;gap:12px;color:#81e6ff;font:10px var(--app-font-mono);letter-spacing:.2em;margin-bottom:27px;}
 .eyebrow:before {content:"";width:35px;height:1px;background:#63dfff;box-shadow:0 0 10px #63dfff;}
@@ -355,14 +355,14 @@ button { font: inherit; }
 .live-dot {width:6px;height:6px;background:#73e8bc;border-radius:50%;box-shadow:0 0 11px #73e8bc;}
 .orbit-note {position:absolute;z-index:2;left:clamp(25px,5vw,76px);bottom:53px;color:#8190a9;display:flex;align-items:center;gap:14px;direction:ltr;font:10px var(--app-font-mono);letter-spacing:.12em}
 .orbit-note:before {content:"";width:35px;height:1px;background:#8295b6;}
-.event-stamp {position:absolute;z-index:2;right:clamp(25px,5vw,76px);bottom:51px;direction:rtl;text-align:right;color:#a2afc6;font-size:12px;line-height:1.7}
+.event-stamp {position:absolute;z-index:2;right:clamp(25px,5vw,76px);bottom:51px;text-align:start;color:#a2afc6;font-size:12px;line-height:1.7}
 .event-stamp strong {display:block;color:#e2ebfb;font-size:14px;font-weight:700}
 .side-rail {position:absolute;z-index:4;left:clamp(18px,4vw,61px);top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:11px;}
 .rail-link {width:49px;height:49px;border:1px solid rgba(178,207,251,.18);background:rgba(14,20,39,.46);backdrop-filter:blur(15px);border-radius:50%;color:#d4e1f8;display:grid;place-items:center;cursor:pointer;transition:all .25s;}
 .rail-link:hover {border-color:#6ee1ff;transform:translateX(3px);color:#6ee1ff;background:#1d3047aa}
 .rail-link span {position:absolute;left:61px;white-space:nowrap;padding:7px 11px;background:#10182a;border:1px solid #263a52;border-radius:4px;color:#b9cee9;opacity:0;transform:translateX(-4px);transition:.2s;pointer-events:none;font-size:12px}
 .rail-link:hover span,.rail-link:focus-visible span {opacity:1;transform:translateX(0)}
-.route-screen {position:absolute;z-index:3;inset:0;display:grid;place-items:center;padding:100px 24px;direction:rtl;animation:arrive .6s ease both;}
+.route-screen {position:absolute;z-index:3;inset:0;display:grid;place-items:center;padding:100px 24px;animation:arrive .6s ease both;}
 .route-panel {position:relative;max-width:620px;width:100%;text-align:center;padding:clamp(32px,6vw,68px);border:1px solid rgba(126,215,255,.19);background:linear-gradient(145deg,rgba(22,32,57,.78),rgba(10,14,29,.63));backdrop-filter:blur(23px);box-shadow:0 30px 100px #0006;border-radius:4px;}
 .route-index {font:11px var(--app-font-mono);letter-spacing:.2em;color:#74e4ff;direction:ltr}
 .route-panel h1 {font-size:clamp(38px,7vw,64px);margin:18px 0 10px;line-height:1.15}
@@ -398,7 +398,6 @@ button { font: inherit; }
   isolation: isolate;
   background: #000;
   color: #e9f3ee;
-  direction: rtl;
 }
 .math-visual-canvas,
 .math-equation-field { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
@@ -635,7 +634,6 @@ button { font: inherit; }
   width: 100%;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: clamp(12px, 2vw, 24px);
-  direction: rtl;
   perspective: 1000px;
 }
 .section-card {
@@ -839,7 +837,6 @@ button { font: inherit; }
   overflow: hidden;
   isolation: isolate;
   background: radial-gradient(ellipse at 51% 48%, rgba(31, 48, 84, .34), transparent 51%);
-  direction: rtl;
 }
 .science-scene {
   position: absolute;
@@ -1420,3 +1417,90 @@ button { font: inherit; }
   .orbit-note,
   .event-stamp { bottom: 68px; }
 }
+
+/* Language controls and direction-aware layout. */
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
+  padding: 3px 7px;
+  border: 1px solid rgba(185, 215, 255, .19);
+  border-radius: 999px;
+  background: rgba(14, 20, 39, .48);
+  color: #91a5c2;
+  backdrop-filter: blur(16px);
+}
+.language-switcher button {
+  min-width: 32px;
+  min-height: 30px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #a9bad3;
+  font: 10px var(--app-font-mono);
+  cursor: pointer;
+  transition: color .2s, background .2s;
+}
+.language-switcher button[aria-pressed="true"] { background: rgba(110, 225, 255, .17); color: #b9f3ff; }
+.language-switcher button:focus-visible { outline: 2px solid #73e8ff; outline-offset: 2px; }
+.language-switcher > span { opacity: .55; }
+
+.science-detail-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+.science-detail-heading h1 { flex:1; min-width:0; margin:0; }
+.video-language-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 10px; }
+.video-language-label { color:#91a7c3; font-size:10px; }
+.video-language-toggle { display:inline-flex; align-items:center; gap:3px; padding:3px; border:1px solid rgba(150,195,230,.19); border-radius:999px; background:rgba(5,13,29,.7); }
+.video-language-toggle button { min-height:29px; padding:0 11px; border:0; border-radius:999px; background:transparent; color:#a9bad3; font:11px var(--app-font-sans); cursor:pointer; transition:background .18s,color .18s; }
+.video-language-toggle button[aria-pressed="true"] { background:rgba(98,205,239,.22); color:#d8f7ff; box-shadow:inset 0 0 0 1px rgba(112,218,255,.25); }
+.video-language-toggle button:focus-visible { outline:2px solid #73e8ff; outline-offset:2px; }
+.science-page[dir="ltr"] .science-detail { left:auto; right:clamp(18px,5.4vw,78px); }
+.science-page[dir="ltr"] .science-overview-note { left:auto; right:clamp(24px,7vw,100px); align-items:flex-start; text-align:left; }
+.science-page[dir="ltr"] .science-scale { left:auto; right:clamp(20px,4vw,58px); }
+.science-page[dir="ltr"] .science-instruction { right:auto; left:clamp(22px,5vw,70px); }
+
+.math-page[dir="ltr"] .math-corner-note { left:auto; right:clamp(18px,4vw,54px); }
+.math-content-card {
+  width:min(920px,calc(100vw - 36px));
+  max-height:min(82dvh,820px);
+  overflow:auto;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:clamp(16px,2.2vw,28px);
+  border:1px solid rgba(145,222,204,.25);
+  border-radius:16px;
+  background:linear-gradient(145deg,rgba(13,26,29,.84),rgba(4,9,13,.78));
+  box-shadow:0 25px 90px rgba(0,0,0,.65),inset 0 1px rgba(255,255,255,.06);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  pointer-events:auto;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(126,205,190,.3) transparent;
+}
+.math-content-card .math-title { margin-bottom:14px; }
+.math-content-card .video-language-row { width:min(100%,760px); }
+.math-content-card .math-video-frame { width:min(100%,760px); flex:none; }
+.math-video-facts { display:flex; justify-content:center; flex-wrap:wrap; gap:5px 14px; width:min(100%,760px); margin:10px 0 12px; color:#9eb6ad; font-size:11px; text-align:center; }
+.math-planet-picker { display:flex; justify-content:center; flex-wrap:wrap; gap:5px; width:min(100%,760px); }
+.math-planet-picker button { min-height:31px; padding:0 10px; border:1px solid rgba(145,205,190,.2); border-radius:999px; background:rgba(7,18,18,.62); color:#acbeb9; font:11px var(--app-font-sans); cursor:pointer; transition:background .2s,border-color .2s,color .2s; }
+.math-planet-picker button:hover,.math-planet-picker button[aria-pressed="true"] { border-color:rgba(128,226,210,.56); background:rgba(26,63,57,.75); color:#e1fff7; }
+.math-planet-picker button:focus-visible { outline:2px solid #89e2ce; outline-offset:2px; }
+.math-content-card .math-back { margin-top:15px; }
+.science-video-media,.math-video-media { display:block; width:100%; height:100%; border:0; object-fit:contain; }
+
+@media (max-width:760px) {
+  .science-page[dir="ltr"] .science-detail { right:12px; }
+  .science-page[dir="ltr"] .science-overview-note { right:18px; }
+  .science-page[dir="ltr"] .science-scale { right:17px; }
+  .science-page[dir="ltr"] .science-instruction { left:17px; }
+  .math-content-card { width:calc(100vw - 24px); max-height:min(78dvh,760px); padding:14px; }
+  .math-content-card .math-title { max-width:100%; font-size:clamp(20px,6vw,31px); margin-bottom:11px; }
+  .math-video-facts { font-size:10px; gap:4px 9px; }
+  .math-planet-picker { gap:4px; }
+  .math-planet-picker button { min-height:30px; padding-inline:8px; font-size:10px; }
+}
+.cosmos-app[dir="ltr"] .side-rail { left:auto; right:clamp(18px,4vw,61px); }
+.cosmos-app[dir="ltr"] .rail-link span { left:auto; right:61px; transform:translateX(4px); }
+.cosmos-app[dir="ltr"] .rail-link:hover span { transform:translateX(0); }
