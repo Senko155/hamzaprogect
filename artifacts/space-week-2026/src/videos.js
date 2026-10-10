@@ -1,5 +1,11 @@
 export const videos = {
-  sun: { science: { ar: '', en: '' }, math: { ar: '', en: '' } },
+  sun: {
+    science: {
+      ar: '/videos/sun-Arabic_1791652157426.mp4',
+      en: '/videos/sun-English_1791652157435.mp4',
+    },
+    math: { ar: '', en: '' },
+  },
   mercury: {
     science: {
       ar: '/videos/Mercury_Arabic_1791571298486.mp4',
@@ -42,6 +48,18 @@ export const videos = {
     },
     math: { ar: '', en: '' },
   },
-  uranus: { science: { ar: '', en: '' }, math: { ar: '', en: '' } },
-  neptune: { science: { ar: '', en: '' }, math: { ar: '', en: '' } },
+  uranus: {
+    science: {
+      ar: '/videos/Uranus-Arabic_1791652072469.mp4',
+      en: '/videos/Uranus-English_1791652072450.mp4',
+    },
+    math: { ar: '', en: '' },
+  },
+  neptune: {
+    science: {
+      ar: '/videos/Neptune-Arabic_1791652117062.mp4',
+      en: '/videos/Neptune-English_1791652117038.mp4',
+    },
+    math: { ar: '', en: '' },
+  },
 };
