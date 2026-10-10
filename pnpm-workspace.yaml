@@ -64,8 +64,6 @@ overrides:
   '@tailwindcss/oxide>@tailwindcss/oxide-linux-x64-musl': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-win32-arm64-msvc': '-'
   '@tailwindcss/oxide>@tailwindcss/oxide-win32-x64-msvc': '-'
-  brace-expansion@>=4.0.0 <5.0.10: '>=5.0.10'
-  brace-expansion@>=4.0.0 <5.0.11: '>=5.0.11'
   brace-expansion@>=4.0.0 <5.0.12: '>=5.0.12'
   esbuild: 0.28.2
   esbuild>@esbuild/aix-ppc64: '-'
@@ -93,7 +91,7 @@ overrides:
   esbuild>@esbuild/win32-arm64: '-'
   esbuild>@esbuild/win32-ia32: '-'
   esbuild>@esbuild/win32-x64: '-'
-  fast-uri@>=3.0.0 <3.1.8: '>=3.1.8'
+  fast-uri@>=3.0.0 <3.1.8: 3.1.8
   js-yaml: 4.3.2
   lightningcss>lightningcss-android-arm64: '-'
   lightningcss>lightningcss-darwin-arm64: '-'
@@ -131,3 +129,6 @@ overrides:
   rollup>@rollup/rollup-win32-x64-gnu: '-'
   rollup>@rollup/rollup-win32-x64-msvc: '-'
   source-map-js@>=1.0.0 <1.2.2: '>=1.2.2'
+
+patchedDependencies:
+  braces@3.0.3: patches/braces@3.0.3.patch
