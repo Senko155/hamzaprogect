@@ -1424,6 +1424,20 @@ button { font: inherit; }
   .orbit-note,
   .event-stamp { bottom: 68px; }
 }
+@media (max-width: 760px) {
+  .cosmos-app.home-layout { overflow-y: auto; }
+  .home-layout .home-content {
+    min-height: auto;
+    padding-bottom: 0;
+  }
+  .home-layout .logo-footer {
+    position: static;
+    inset: auto;
+    width: 100%;
+    min-height: 0;
+    margin: 24px auto 20px;
+  }
+}
 
 /* Language controls and direction-aware layout. */
 .language-switcher {

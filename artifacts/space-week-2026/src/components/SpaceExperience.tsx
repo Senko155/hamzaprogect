@@ -118,7 +118,7 @@ export default function SpaceExperience() {
   };
   const toggleMute = () => setMuted((value) => !value);
   return (
-    <div className="cosmos-app" dir={direction} lang={language} data-testid="space-week-app">
+    <div className={`cosmos-app${!activeSection ? ' home-layout' : ''}`} dir={direction} lang={language} data-testid="space-week-app">
       {location !== '/simulation' && location !== '/science' && location !== '/math' && <OrbitalStage />}
       <div className="space-vignette" aria-hidden="true" />
       {!activeSection ? (
