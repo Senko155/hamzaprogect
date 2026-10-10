@@ -28,8 +28,20 @@ export const videos = {
     },
     math: { ar: '', en: '' },
   },
-  jupiter: { science: { ar: '', en: '' }, math: { ar: '', en: '' } },
-  saturn: { science: { ar: '', en: '' }, math: { ar: '', en: '' } },
+  jupiter: {
+    science: {
+      ar: '/videos/Jupiter-arabic_1791651839727.mp4',
+      en: '/videos/Jupiter-English_1791651839737.mp4',
+    },
+    math: { ar: '', en: '' },
+  },
+  saturn: {
+    science: {
+      ar: '/videos/saturn-Arabic_1791651797004.mp4',
+      en: '/videos/saturn-english_1791651796968.mp4',
+    },
+    math: { ar: '', en: '' },
+  },
   uranus: { science: { ar: '', en: '' }, math: { ar: '', en: '' } },
   neptune: { science: { ar: '', en: '' }, math: { ar: '', en: '' } },
 };
