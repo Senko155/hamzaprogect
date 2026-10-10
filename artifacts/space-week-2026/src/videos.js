@@ -11,28 +11,40 @@ export const videos = {
       ar: '/videos/Mercury_Arabic_1791571298486.mp4',
       en: '/videos/Mercury_English_1791571298380.mp4',
     },
-    math: { ar: '', en: '' },
+    math: {
+      ar: '/videos/mercury-math-Arabic_1791658315804.mp4',
+      en: '/videos/mercury-math-English_1791658315888.mp4',
+    },
   },
   venus: {
     science: {
       ar: '/videos/Venus-Arabic_1791651483543.mp4',
       en: '/videos/Venus-english_1791651483534.mp4',
     },
-    math: { ar: '', en: '' },
+    math: {
+      ar: '/videos/Venus-math-Arabic_1791658315931.mp4',
+      en: '/videos/Venus-math-English_1791658315975.mp4',
+    },
   },
   earth: {
     science: {
       ar: '/videos/earth-arabic_1791650343402.mp4',
       en: '/videos/earth-english_1791650343412.mp4',
     },
-    math: { ar: '', en: '' },
+    math: {
+      ar: '/videos/earth-math-Arabic_1791658316070.mp4',
+      en: '/videos/earth-math-English_1791658316008.mp4',
+    },
   },
   mars: {
     science: {
       ar: '/videos/mars-arabic_1791651500657.mp4',
       en: '/videos/mars-english_1791651500674.mp4',
     },
-    math: { ar: '', en: '' },
+    math: {
+      ar: '/videos/mars-math-Arabic_1791658316033.mp4',
+      en: '/videos/mars-math-English_1791658316102.mp4',
+    },
   },
   jupiter: {
     science: {

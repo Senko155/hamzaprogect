@@ -1208,7 +1208,12 @@ button { font: inherit; }
 .math-corner-note { bottom: 76px; }
 .math-center { padding-bottom: 110px; }
 @media (max-width: 760px) {
-  .logo-footer { min-height: 48px; gap: 16px; padding: 4px 10px; }
+  .logo-footer {
+    bottom: max(0px, calc(env(safe-area-inset-bottom) - 6px));
+    min-height: 48px;
+    gap: 16px;
+    padding: 4px 10px;
+  }
   .logo-footer img { height: 34px; max-width: min(43vw, 190px); }
   .home-content { padding-bottom: 120px; }
   .orbit-note,
