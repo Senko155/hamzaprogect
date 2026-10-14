@@ -8,12 +8,14 @@ A bilingual Arabic/English Space Week experience with space simulations, science
 - Start the managed `artifacts/space-week-2026: web` workflow for the website preview at `/`. It runs `pnpm --filter @workspace/space-week-2026 run dev` and supplies `PORT` and `BASE_PATH` automatically.
 - `pnpm --filter @workspace/space-week-2026 run typecheck` — check the website's TypeScript
 - `PORT=22282 BASE_PATH=/ pnpm --filter @workspace/space-week-2026 run build` — build the website locally
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- The current website runs entirely in the browser and does not need the API server or a database. Leave the API and canvas workflows stopped unless working on those services.
+- Start the managed `artifacts/api-server: API Server` workflow if backend functionality is added.
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Website environment: `PORT` and `BASE_PATH` are supplied by its managed workflow; no user-provided secrets are required.
+- Database packages require `DATABASE_URL` only when used — a Postgres connection string.
 
 ## Stack
 
