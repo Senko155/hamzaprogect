@@ -4,8 +4,7 @@ import * as THREE from 'three';
 import { ArrowDownLeft, ArrowDownRight, RotateCcw } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
 import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor } from '@/components/solar-system-model';
-import { makeMathPlanetTexture } from '@/components/math-planet-textures';
-import LogoFooter from '@/components/LogoFooter';
+import { makeMathPlanetTexture, makeSunSurfaceTexture } from '@/components/math-planet-textures';
 import { useLanguage } from '../i18n/LanguageContext';
 import { videos } from '../videos.js';
 import type { Language } from '../i18n/LanguageContext';
@@ -225,6 +224,79 @@ function drawMathPlanet(
   context.restore();
 }
 
+function drawSciencePlanet(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  id: string,
+  sunX: number,
+  sunY: number,
+  texture: HTMLCanvasElement | undefined,
+) {
+  const distance = Math.hypot(sunX - x, sunY - y) || 1;
+  const lightX = (sunX - x) / distance;
+  const lightY = (sunY - y) / distance;
+  context.save();
+  context.shadowBlur = 0;
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.clip();
+  context.fillStyle = id === 'earth' ? '#1d5b79' : id === 'uranus' ? '#82d7d6' : id === 'neptune' ? '#2347b2' : '#bd8060';
+  context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  if (texture) context.drawImage(texture, x - radius, y - radius, radius * 2, radius * 2);
+
+  const shade = context.createRadialGradient(
+    x - lightX * radius * .3,
+    y - lightY * radius * .3,
+    radius * .05,
+    x - lightX * radius * .55,
+    y - lightY * radius * .55,
+    radius * 1.25,
+  );
+  shade.addColorStop(0, 'rgba(0,0,0,0)');
+  shade.addColorStop(.43, 'rgba(0,0,0,.12)');
+  shade.addColorStop(.76, 'rgba(0,0,0,.5)');
+  shade.addColorStop(1, 'rgba(0,0,0,.88)');
+  context.fillStyle = shade;
+  context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+
+  const rim = context.createRadialGradient(
+    x + lightX * radius * .24,
+    y + lightY * radius * .24,
+    radius * .52,
+    x + lightX * radius * .34,
+    y + lightY * radius * .34,
+    radius * 1.04,
+  );
+  rim.addColorStop(0, 'rgba(255,255,255,0)');
+  rim.addColorStop(.84, 'rgba(255,255,255,0)');
+  rim.addColorStop(1, 'rgba(255,231,190,.3)');
+  context.fillStyle = rim;
+  context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  context.restore();
+}
+
+function drawScienceSaturnRings(context: CanvasRenderingContext2D, x: number, y: number, radius: number, rotation: number, front: boolean) {
+  const rings = [
+    { scale: 1.45, color: 'rgba(224,205,160,.44)', width: .11 },
+    { scale: 1.7, color: 'rgba(173,147,103,.72)', width: .16 },
+    { scale: 1.94, color: 'rgba(238,222,185,.78)', width: .12 },
+    { scale: 2.16, color: 'rgba(129,107,76,.52)', width: .09 },
+  ];
+  context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  rings.forEach(({ scale, color, width }) => {
+    context.beginPath();
+    context.ellipse(0, 0, radius * scale, radius * scale * .34, 0, front ? Math.PI : 0, front ? Math.PI * 2 : Math.PI);
+    context.strokeStyle = color;
+    context.lineWidth = Math.max(1, radius * width);
+    context.stroke();
+  });
+  context.restore();
+}
+
 function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host: HTMLDivElement | null; selectedId: string | null; onSelect: (id: string) => void; mathMode: boolean }) {
   const { language } = useLanguage();
   const languageRef = useRef(language);
@@ -250,6 +322,9 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
     let pinchDistance = 0;
     let pinchZoom = 1;
     let lastPositions = new Map<string, { x: number; y: number; radius: number }>();
+    const planetTextures = new Map<string, THREE.CanvasTexture>(
+      mathMode ? [] : planets.map((planet) => [planet.id, makeMathPlanetTexture(planet.id)]),
+    );
     const epoch = J2000_EPOCH;
     const viewFocus = new THREE.Vector3();
     const transitionFromFocus = new THREE.Vector3();
@@ -388,7 +463,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         context.fill();
       });
       context.globalAlpha = 1;
-      const planetScale = mathMode ? 1.3 : 1;
+      const planetScale = 1.3;
       const orbitScale = mathMode ? 1.28 : 1;
       const scale = Math.min(width / (mathMode ? 31 : 22), height / (mathMode ? 29 : 23)) * .87;
       const cameraScale = scale * zoom * cameraZoom;
@@ -419,7 +494,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         context.globalAlpha = 1;
       });
       const sunPoint = transform(new THREE.Vector3());
-      const sunRadius = Math.max(6, .78 * scale * .3 * planetScale) * zoom * cameraZoom;
+      const sunRadius = Math.max(mathMode ? 6 : 7.8, .78 * scale * .3 * planetScale) * zoom * cameraZoom;
       const sunGlow = context.createRadialGradient(sunPoint.x, sunPoint.y, 1, sunPoint.x, sunPoint.y, sunRadius * 4.2);
       sunGlow.addColorStop(0, '#ffe8b4');
       sunGlow.addColorStop(.25, '#ffc276b8');
@@ -445,9 +520,9 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         const point = transform(worldPosition);
         const radius = mathMode
           ? Math.max(5.5 + spec.size * scale * .36 * planetScale, spec.size * scale * .3 * planetScale) * zoom * cameraZoom
-          : Math.max(3.2, spec.size * scale * .3) * zoom * cameraZoom;
+          : Math.max(4.16, spec.size * scale * .3 * planetScale) * zoom * cameraZoom;
         context.globalAlpha = opacityFor(spec.id);
-        if (spec.id === 'saturn') {
+        if (spec.id === 'saturn' && mathMode) {
           context.save();
           context.translate(point.x, point.y);
           context.rotate(-.22 + angle);
@@ -457,6 +532,8 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
           context.lineWidth = Math.max(1.5, radius * .24);
           context.stroke();
           context.restore();
+        } else if (spec.id === 'saturn') {
+          drawScienceSaturnRings(context, point.x, point.y, radius, -.22 + angle, false);
         }
         const color = `#${spec.color.toString(16).padStart(6, '0')}`;
         const glow = context.createRadialGradient(point.x - radius * .35, point.y - radius * .35, 1, point.x, point.y, radius * 2.7);
@@ -470,6 +547,8 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         context.arc(point.x, point.y, radius, 0, Math.PI * 2);
         context.fill();
         if (mathMode) drawMathPlanet(context, point.x, point.y, radius, spec.id, sunPoint.x, sunPoint.y);
+        else drawSciencePlanet(context, point.x, point.y, radius, spec.id, sunPoint.x, sunPoint.y, planetTextures.get(spec.id)?.image as HTMLCanvasElement | undefined);
+        if (!mathMode && spec.id === 'saturn') drawScienceSaturnRings(context, point.x, point.y, radius, -.22 + angle, true);
         if (mathMode && spec.id === 'saturn') {
           context.save();
           context.translate(point.x, point.y);
@@ -535,6 +614,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
       canvas.removeEventListener('wheel', wheel);
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', visibility);
+      planetTextures.forEach((texture) => texture.dispose());
     };
   }, [host]);
   return <canvas ref={canvasRef} className="science-fallback-canvas" aria-hidden="true" />;
@@ -574,10 +654,21 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const desiredTarget = new THREE.Vector3();
     const cameraOffset = new THREE.Vector3();
     const projectedPoint = new THREE.Vector3();
-    const planetScale = mathMode ? 1.3 : 1;
+    const planetScale = 1.3;
     const orbitScale = mathMode ? 1.28 : 1;
-    const fitDistance = 16.5 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(window.innerWidth / Math.max(window.innerHeight, 1), 1));
-    const overviewDistance = mathMode ? Math.max(43, fitDistance) : window.innerWidth < 760 ? 56 : 28;
+    const overviewDistanceForViewport = () => {
+      const width = mathMode ? window.innerWidth : host.clientWidth || window.innerWidth;
+      const height = mathMode ? window.innerHeight : host.clientHeight || window.innerHeight;
+      const aspect = width / Math.max(height, 1);
+      const verticalTangent = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+      if (mathMode) {
+        const fitDistance = 16.5 / (verticalTangent * Math.min(aspect, 1));
+        return Math.max(43, fitDistance);
+      }
+      const ringAwareMargin = aspect < .7 ? 1.5 : 1.16;
+      return (10.7 * ringAwareMargin) / (verticalTangent * Math.min(aspect, 1));
+    };
+    let overviewDistance = overviewDistanceForViewport();
     const spherical = new THREE.Spherical(overviewDistance, 1.22, .48);
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -588,6 +679,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const epoch = J2000_EPOCH;
     let desiredDistance = overviewDistance;
     let zoomDistance = overviewDistance;
+    const maxZoomDistance = () => mathMode ? 60 : Math.max(60, overviewDistance * 1.8);
     let dragging: { id: number; x: number; y: number; moved: boolean } | null = null;
     let gestureMoved = false;
     const activePointers = new Map<number, { x: number; y: number }>();
@@ -612,21 +704,35 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     let measuredLanguage = languageRef.current;
     const previousLabelPositions = new Map<string, { x: number; y: number }>();
 
-    scene.add(new THREE.AmbientLight(0x9cb3d4, mathMode ? .55 : 1.15));
+    scene.add(new THREE.AmbientLight(0x9cb3d4, mathMode ? .55 : .48));
     scene.add(new THREE.PointLight(0xffd39a, 65, 65, 1.7));
     const sunRadius = .78 * planetScale;
     const sun = new THREE.Mesh(
       new THREE.SphereGeometry(sunRadius, 32, 24),
-      new THREE.MeshStandardMaterial({ color: 0xffc17b, emissive: 0xff762b, emissiveIntensity: mathMode ? 2.3 : 1.8, roughness: .35 }),
+      new THREE.MeshStandardMaterial({
+        map: mathMode ? undefined : makeSunSurfaceTexture(),
+        color: mathMode ? 0xffc17b : 0xffffff,
+        emissive: 0xff762b,
+        emissiveIntensity: mathMode ? 2.3 : 1.8,
+        roughness: .35,
+      }),
     );
     sun.userData.bodyId = 'sun';
     scene.add(sun);
     meshes.set('sun', sun);
     selectables.push(sun);
-    const sunHalo = new THREE.Mesh(new THREE.SphereGeometry(sunRadius * 1.26, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffa65d, transparent: true, opacity: .18, side: THREE.BackSide }));
+    const sunHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(sunRadius * (mathMode ? 1.26 : 1.42), 24, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffa65d, transparent: true, opacity: mathMode ? .18 : .2, side: THREE.BackSide }),
+    );
     scene.add(sunHalo);
+    if (!mathMode) {
+      scene.add(new THREE.Mesh(
+        new THREE.SphereGeometry(sunRadius * 1.95, 24, 16),
+        new THREE.MeshBasicMaterial({ color: 0xff7c3a, transparent: true, opacity: .055, side: THREE.BackSide, depthWrite: false }),
+      ));
+    }
 
-    const saturnRingGeometry = new THREE.RingGeometry(1.18, 1.62, 48);
     planets.forEach((spec) => {
       const points: THREE.Vector3[] = [];
       for (let i = 0; i <= 128; i++) points.push(orbitalPoint(spec, i / 128 * Math.PI * 2, 0).multiplyScalar(orbitScale));
@@ -639,10 +745,10 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       const planet = new THREE.Mesh(
         new THREE.SphereGeometry(planetRadius, 28, 22),
         new THREE.MeshStandardMaterial({
-          map: mathMode ? makeMathPlanetTexture(spec.id) : undefined,
-          color: mathMode ? 0xffffff : spec.color,
+          map: makeMathPlanetTexture(spec.id),
+          color: 0xffffff,
           emissive: mathMode ? 0x000000 : spec.color,
-          emissiveIntensity: .06,
+          emissiveIntensity: mathMode ? .06 : .02,
           roughness: .82,
           transparent: true,
           opacity: 1,
@@ -666,10 +772,20 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
             planet.add(ring);
           });
         } else {
-          const ring = new THREE.Mesh(saturnRingGeometry, new THREE.MeshBasicMaterial({ color: 0xd4c19a, transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false }));
-          ring.scale.set(spec.size, spec.size, 1);
-          ring.rotation.x = Math.PI * .31;
-          planet.add(ring);
+          [
+            { inner: 1.12, outer: 1.3, color: 0x9f8b68, opacity: .4 },
+            { inner: 1.34, outer: 1.72, color: 0xd8c39a, opacity: .62 },
+            { inner: 1.78, outer: 1.86, color: 0x7d6a4c, opacity: .22 },
+            { inner: 1.92, outer: 2.18, color: 0xe7d6b1, opacity: .58 },
+          ].forEach(({ inner, outer, color, opacity }) => {
+            const ring = new THREE.Mesh(
+              new THREE.RingGeometry(inner, outer, 72),
+              new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
+            );
+            ring.scale.set(planetRadius, planetRadius, 1);
+            ring.rotation.x = Math.PI * .31;
+            planet.add(ring);
+          });
         }
       }
       if (spec.id === 'uranus') {
@@ -686,22 +802,20 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
             new THREE.RingGeometry(inner, outer, 56),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
           );
-          ring.scale.set(spec.size, spec.size, 1);
+          ring.scale.set(mathMode ? spec.size : planetRadius, mathMode ? spec.size : planetRadius, 1);
           planet.add(ring);
         });
       }
       scene.add(planet);
       meshes.set(spec.id, planet);
       selectables.push(planet);
-      if (mathMode) {
-        const hitArea = new THREE.Mesh(
-          new THREE.SphereGeometry(planetRadius * 1.65, 12, 10),
-          new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }),
-        );
-        hitArea.userData.bodyId = spec.id;
-        planet.add(hitArea);
-        selectables.push(hitArea);
-      }
+      const hitArea = new THREE.Mesh(
+        new THREE.SphereGeometry(planetRadius * (mathMode ? 1.65 : 1.8), 12, 10),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }),
+      );
+      hitArea.userData.bodyId = spec.id;
+      planet.add(hitArea);
+      selectables.push(hitArea);
     });
     const starPositions = new Float32Array((window.innerWidth < 720 ? 420 : 900) * 3);
     for (let i = 0; i < starPositions.length; i += 3) {
@@ -717,6 +831,11 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const resize = () => {
       const width = host.clientWidth || window.innerWidth;
       const height = host.clientHeight || window.innerHeight;
+      if (!mathMode) {
+        const zoomRatio = zoomDistance / overviewDistance;
+        overviewDistance = overviewDistanceForViewport();
+        zoomDistance = overviewDistance * zoomRatio;
+      }
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
@@ -787,7 +906,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       if (activePointers.size >= 2) {
         const [a, b] = [...activePointers.values()];
         const gap = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinchStart > 0) zoomDistance = THREE.MathUtils.clamp(pinchZoom * pinchStart / Math.max(gap, 1), 3.4, 60);
+        if (pinchStart > 0) zoomDistance = THREE.MathUtils.clamp(pinchZoom * pinchStart / Math.max(gap, 1), 3.4, maxZoomDistance());
         return;
       }
       if (!dragging || dragging.id !== event.pointerId || !prior) return;
@@ -817,7 +936,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     };
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      zoomDistance = THREE.MathUtils.clamp(zoomDistance + event.deltaY * .015, 3.4, 60);
+      zoomDistance = THREE.MathUtils.clamp(zoomDistance + event.deltaY * .015, 3.4, maxZoomDistance());
     };
     const onLeave = () => { hoveredId = null; };
     renderer.domElement.addEventListener('pointerdown', onDown);
@@ -854,7 +973,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       } else desiredTarget.set(0, 0, 0);
       target.lerp(desiredTarget, reduced ? .16 : .075);
       const focusBody = bodies.find((body) => body.id === selected);
-        const focusDistance = focusBody ? Math.max(1.2, focusBody.size * planetScale * 4.8) : 28;
+      const focusDistance = focusBody ? Math.max(1.2, focusBody.size * (mathMode ? planetScale : 1) * 4.8) : overviewDistance;
       desiredDistance = focusBody ? focusDistance : zoomDistance;
       spherical.radius = THREE.MathUtils.lerp(spherical.radius, desiredDistance, reduced ? .18 : .065);
       cameraOffset.setFromSpherical(spherical);
@@ -898,7 +1017,6 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
           materials.forEach((material) => { if ('map' in material && material.map) material.map.dispose(); material.dispose(); });
         }
       });
-      saturnRingGeometry.dispose();
       renderer.dispose();
       renderer.domElement.remove();
     };
@@ -1007,7 +1125,6 @@ export default function SciencePage() {
         </section>
       )}
       <div className="science-scale" dir="ltr" data-testid="science-model-caption">{t.science.modelCaption}</div>
-      <LogoFooter />
     </main>
   );
 }

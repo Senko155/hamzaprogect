@@ -150,3 +150,39 @@ export function makeMathPlanetTexture(id: string): THREE.CanvasTexture {
   texture.anisotropy = 2;
   return texture;
 }
+
+export function makeSunSurfaceTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const context = canvas.getContext('2d');
+  if (!context) return new THREE.CanvasTexture(canvas);
+
+  const random = seeded('science-sun');
+  const surface = context.createLinearGradient(0, 0, 0, canvas.height);
+  surface.addColorStop(0, '#d94e20');
+  surface.addColorStop(.28, '#ff8b2d');
+  surface.addColorStop(.52, '#ffd36f');
+  surface.addColorStop(.73, '#ff8a2d');
+  surface.addColorStop(1, '#c73b1d');
+  context.fillStyle = surface;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < 230; i++) {
+    const x = random() * canvas.width;
+    const y = random() * canvas.height;
+    const radius = 3 + random() * 18;
+    const granule = context.createRadialGradient(x - radius * .24, y - radius * .2, 1, x, y, radius);
+    granule.addColorStop(0, random() > .5 ? 'rgba(255,244,173,.58)' : 'rgba(255,111,37,.42)');
+    granule.addColorStop(1, 'rgba(255,144,45,0)');
+    context.fillStyle = granule;
+    context.beginPath();
+    context.arc(x, y, radius, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 2;
+  return texture;
+}

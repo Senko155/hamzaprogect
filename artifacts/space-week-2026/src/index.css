@@ -1176,7 +1176,7 @@ button { font: inherit; }
   .science-hint-pulse { animation: none; }
 }
 
-/* Shared image-only partner footer; each page reserves space so it stays clear of controls. */
+/* Home-only image footer; the logos remain in the home document flow. */
 .logo-footer {
   position: absolute;
   z-index: 5;
@@ -1526,14 +1526,21 @@ button { font: inherit; }
 .cosmos-app[dir="ltr"] .rail-link span { left:auto; right:61px; transform:translateX(4px); }
 .cosmos-app[dir="ltr"] .rail-link:hover span { transform:translateX(0); }
 
+body.space-week-home-scroll {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Home credits and partner logos stay in document flow at every viewport. */
 .cosmos-app.home-layout {
   display: flex;
   height: auto;
   min-height: 100dvh;
   flex-direction: column;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: visible;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
 }
 .home-layout .home-content {
   position: relative;
@@ -1669,5 +1676,25 @@ button { font: inherit; }
     min-height: 25px;
     padding: 3px 7px;
     font-size: 10px;
+  }
+}
+
+/* Home keeps a normal document scroll; the animated scenery never intercepts it. */
+.space-canvas,
+.space-vignette,
+.space-canvas canvas,
+.fallback-solar-canvas {
+  pointer-events: none;
+}
+
+.science-page .science-body-label,
+.science-page .science-scene.is-fallback .science-body-label {
+  min-height: 44px;
+  padding-block: 7px;
+}
+
+@media (max-width: 760px) {
+  .science-page .science-fallback-selector button {
+    min-height: 44px;
   }
 }

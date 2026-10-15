@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Activity, ArrowDown, ArrowUp, Flag, Home, Pause, Play, Radio, RotateCcw, Rocket, Settings2, Zap } from 'lucide-react';
 import MissionScene, { type MissionPhase } from './MissionScene';
-import LogoFooter from '../LogoFooter';
 import { useLanguage } from '../../i18n/LanguageContext';
 import './simulation.css';
 
@@ -356,7 +355,6 @@ export default function Simulation({muted,onToggleMute,onBackHome}:Props) {
           </div>}
         </section>
       </div>
-      {phase==='finish'&&<LogoFooter />}
     </main>
   );
 }

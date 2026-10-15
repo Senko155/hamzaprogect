@@ -97,6 +97,10 @@ export default function SpaceExperience() {
     return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
+    document.body.classList.toggle('space-week-home-scroll', !activeSection);
+    return () => document.body.classList.remove('space-week-home-scroll');
+  }, [activeSection]);
+  useEffect(() => {
     try { window.localStorage.setItem('space-week-muted', String(muted)); } catch { /* Storage is optional. */ }
   }, [muted]);
   const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;

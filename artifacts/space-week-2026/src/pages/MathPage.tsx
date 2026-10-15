@@ -3,7 +3,6 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useLocation } from 'wouter';
-import LogoFooter from '../components/LogoFooter';
 import { useLanguage, type Language } from '../i18n/LanguageContext';
 import { videos } from '../videos.js';
 import VideoLanguageToggle from '../components/VideoLanguageToggle';
@@ -214,7 +213,6 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
         </article>
       </section>
       <div className="math-corner-note" aria-hidden="true">{t.math.cornerNote}</div>
-      <LogoFooter />
     </main>
   );
 }
