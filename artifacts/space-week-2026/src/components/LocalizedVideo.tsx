@@ -55,7 +55,6 @@ export default function LocalizedVideo({
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [failed, setFailed] = useState(false);
-  const [useWebmFallback, setUseWebmFallback] = useState(false);
   const webmFallback = source?.kind === 'mp4'
     && source.src.startsWith(`${window.location.origin}/videos/`)
     && /\.mp4$/i.test(source.src)
@@ -66,7 +65,6 @@ export default function LocalizedVideo({
     const video = videoRef.current;
     const iframe = iframeRef.current;
     setFailed(false);
-    setUseWebmFallback(false);
     return () => {
       if (video) {
         video.pause();
@@ -99,7 +97,6 @@ export default function LocalizedVideo({
       <video
         className={mediaClassName}
         ref={videoRef}
-        src={useWebmFallback && webmFallback ? webmFallback : source.src}
         controls
         playsInline
         preload="metadata"
@@ -107,10 +104,12 @@ export default function LocalizedVideo({
         data-testid={testId}
         onError={() => {
           videoRef.current?.pause();
-          if (webmFallback && !useWebmFallback) setUseWebmFallback(true);
-          else setFailed(true);
+          setFailed(true);
         }}
-      />
+      >
+        <source src={source.src} type="video/mp4" />
+        {webmFallback && <source src={webmFallback} type="video/webm" />}
+      </video>
     );
   }
   return (

@@ -173,7 +173,7 @@ export default function SpaceExperience() {
             </section>
           </main>
           <div className="orbit-note" aria-label={t.home.orbitDescription} data-testid="label-orbit-scale">{t.home.orbitNote}</div>
-          <div className="home-credits" dir="ltr" aria-label="Project credits">
+          <div className="home-credits" dir="ltr" aria-label="Project credits" data-testid="home-credits">
             <div>Hamza Nour AlDin AlHassan</div>
             <div>Prince Abdulmohsen bin Abdulaziz Secondary School</div>
             <div>• Program Coordinator / Dr. Wail Zain Fakherji</div>

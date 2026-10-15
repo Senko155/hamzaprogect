@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import * as THREE from 'three';
 import { ArrowDownLeft, ArrowDownRight, RotateCcw } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
@@ -68,7 +69,7 @@ function placeProjectedLabels(
     const old = previous.get(body.id);
     let best: { x: number; y: number; score: number } | null = null;
     const angles = preferAbove
-      ? [-Math.PI / 2, -Math.PI / 3, -Math.PI / 6, 0, Math.PI / 6, Math.PI / 3, Math.PI / 2, 2 * Math.PI / 3, 5 * Math.PI / 6, Math.PI, -5 * Math.PI / 6, -2 * Math.PI / 3]
+      ? [-Math.PI / 2, -5 * Math.PI / 12, -7 * Math.PI / 12, -Math.PI / 3, -2 * Math.PI / 3, -Math.PI / 4, -3 * Math.PI / 4]
       : Array.from({ length: 8 }, (_, index) => -Math.PI / 2 + index * Math.PI / 4);
     for (const ring of rings) {
       for (let index = 0; index < angles.length; index++) {
@@ -271,7 +272,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
     let transitionToX = .5;
     let transitionFromY = .52;
     let transitionToY = .52;
-    const labels = new Map<string, HTMLButtonElement | null>(bodies.map((body) => [body.id, host.querySelector<HTMLButtonElement>(`[data-body-label="${body.id}"]`)]));
+    const labels = new Map<string, HTMLButtonElement | null>(bodies.map((body) => [body.id, document.querySelector<HTMLButtonElement>(`[data-body-label="${body.id}"]`)]));
     let labelSizes = measureLabels(labels);
     let measuredLanguage = languageRef.current;
     const previousLabelPositions = new Map<string, { x: number; y: number }>();
@@ -539,8 +540,8 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
   return <canvas ref={canvasRef} className="science-fallback-canvas" aria-hidden="true" />;
 }
 
-export function ScienceScene({ selectedId, onSelect, mathMode = false }: { selectedId: string | null; onSelect: (id: string) => void; mathMode?: boolean }) {
-  const { t, language } = useLanguage();
+export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathLabels = true }: { selectedId: string | null; onSelect: (id: string) => void; mathMode?: boolean; showMathLabels?: boolean }) {
+  const { t, language, direction } = useLanguage();
   const hostRef = useRef<HTMLDivElement>(null);
   const [webglFailed, setWebglFailed] = useState(false);
   const selectedRef = useRef(selectedId);
@@ -606,7 +607,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false }: { selec
     renderer.domElement.setAttribute('role', 'img');
     renderer.domElement.dataset.testid = 'science-solar-canvas';
     host.appendChild(renderer.domElement);
-    const labelElements = new Map<string, HTMLButtonElement | null>(bodies.map((body) => [body.id, host.querySelector<HTMLButtonElement>(`[data-body-label="${body.id}"]`)]));
+    const labelElements = new Map<string, HTMLButtonElement | null>(bodies.map((body) => [body.id, document.querySelector<HTMLButtonElement>(`[data-body-label="${body.id}"]`)]));
     let labelSizes = measureLabels(labelElements);
     let measuredLanguage = languageRef.current;
     const previousLabelPositions = new Map<string, { x: number; y: number }>();
@@ -903,26 +904,35 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false }: { selec
     };
   }, []);
 
+  const labelsLayer = (
+    <div
+      className={`science-body-labels${mathMode ? ` math-body-labels${showMathLabels ? '' : ' is-hidden'}` : ''}`}
+      aria-label={t.science.selectBody}
+      dir={direction}
+      lang={language}
+    >
+      {bodies.map((body) => (
+        <button
+          className={`science-body-label${selectedId === body.id ? ' is-selected' : ''}`}
+          key={body.id}
+          type="button"
+          data-body-label={body.id}
+          data-testid={`button-select-${body.id}`}
+          aria-label={`${t.science.explore(t.science.names[body.id])}`}
+          aria-pressed={selectedId === body.id}
+          onClick={() => onSelect(body.id)}
+        >
+          <i style={{ '--body-color': `#${body.color.toString(16).padStart(6, '0')}` } as CSSProperties} />
+          {t.science.names[body.id]}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
       <div className={`science-scene${webglFailed ? ' is-fallback' : ''}${mathMode ? ' math-planet-scene' : ''}`} ref={hostRef} data-testid="science-solar-scene">
       {webglFailed && <ScienceCanvasFallback host={hostRef.current} selectedId={selectedId} onSelect={onSelect} mathMode={mathMode} />}
-      <div className="science-body-labels" aria-label={t.science.selectBody}>
-        {bodies.map((body) => (
-          <button
-            className={`science-body-label${selectedId === body.id ? ' is-selected' : ''}`}
-            key={body.id}
-            type="button"
-            data-body-label={body.id}
-            data-testid={`button-select-${body.id}`}
-            aria-label={`${t.science.explore(t.science.names[body.id])}`}
-            aria-pressed={selectedId === body.id}
-            onClick={() => onSelect(body.id)}
-          >
-            <i style={{ '--body-color': `#${body.color.toString(16).padStart(6, '0')}` } as CSSProperties} />
-            {t.science.names[body.id]}
-          </button>
-        ))}
-      </div>
+      {mathMode ? createPortal(labelsLayer, document.body) : labelsLayer}
       {webglFailed && !selectedId && (
         <div className="science-fallback-selector" role="group" aria-label={t.science.selectWorld} data-testid="science-fallback-selector">
           {bodies.map((body) => (

@@ -1604,7 +1604,17 @@ button { font: inherit; }
 .math-planet-scene .science-body-labels {
   z-index: 5;
 }
-.math-planet-scene .science-body-label {
+.math-body-labels {
+  position: fixed;
+  z-index: 10;
+  inset: 0;
+  pointer-events: none;
+}
+.math-body-labels.is-hidden {
+  visibility: hidden;
+}
+.math-planet-scene .science-body-label,
+.math-body-labels .science-body-label {
   min-height: 27px;
   padding: 4px 9px;
   border-color: rgba(181, 224, 255, .34);
@@ -1654,7 +1664,8 @@ button { font: inherit; }
 }
 
 @media (max-width: 760px) {
-  .math-planet-scene .science-body-label {
+  .math-planet-scene .science-body-label,
+  .math-body-labels .science-body-label {
     min-height: 25px;
     padding: 3px 7px;
     font-size: 10px;

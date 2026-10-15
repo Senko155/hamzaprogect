@@ -131,7 +131,7 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
   const [videoOpen, setVideoOpen] = useState(false);
   const returnHome = () => onBackHome ? onBackHome() : setLocation('/');
   const selectedName = t.science.names[selectedId];
-  const videoUrl = videos[selectedId].math[videoLanguage] || videos[selectedId].science[videoLanguage];
+  const videoUrl = videos[selectedId].math[videoLanguage];
   const bodyFacts = t.science.factsByPlanet[selectedId];
   const renderedEquations = useMemo(() => equations.map((equation, index) => ({
     ...equation,
@@ -145,6 +145,7 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
       <ScienceScene
         selectedId={selectedId}
         mathMode
+        showMathLabels={!videoOpen}
         onSelect={(id) => {
           setVideoOpen(true);
           setVideoLanguageOverride(null);
