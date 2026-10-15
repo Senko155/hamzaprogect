@@ -8,6 +8,7 @@ import { useLanguage, type Language } from '../i18n/LanguageContext';
 import { videos } from '../videos.js';
 import VideoLanguageToggle from '../components/VideoLanguageToggle';
 import LocalizedVideo from '../components/LocalizedVideo';
+import { ScienceScene } from './SciencePage';
 
 const planetIds = Object.keys(videos) as (keyof typeof videos)[];
 
@@ -130,7 +131,7 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
   const [videoOpen, setVideoOpen] = useState(true);
   const returnHome = () => onBackHome ? onBackHome() : setLocation('/');
   const selectedName = t.science.names[selectedId];
-  const videoUrl = videos[selectedId].math[videoLanguage];
+  const videoUrl = videos[selectedId].math[videoLanguage] || videos[selectedId].science[videoLanguage];
   const bodyFacts = t.science.factsByPlanet[selectedId];
   const renderedEquations = useMemo(() => equations.map((equation, index) => ({
     ...equation,
@@ -141,6 +142,15 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
   return (
     <main className="math-page" dir={direction} lang={language} data-testid="page-math" aria-label={t.math.label}>
       <MathCanvas />
+      <ScienceScene
+        selectedId={selectedId}
+        mathMode
+        onSelect={(id) => {
+          setVideoOpen(true);
+          setVideoLanguageOverride(null);
+          setSelectedId(id as (typeof planetIds)[number]);
+        }}
+      />
       <div className="math-equation-field" aria-hidden="true" data-testid="math-equation-field">
         {renderedEquations.map(({ html, index, x, y, layer, tint, delay, duration }) => (
           <span

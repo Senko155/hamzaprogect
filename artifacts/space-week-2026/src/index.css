@@ -1525,3 +1525,115 @@ button { font: inherit; }
 .cosmos-app[dir="ltr"] .side-rail { left:auto; right:clamp(18px,4vw,61px); }
 .cosmos-app[dir="ltr"] .rail-link span { left:auto; right:61px; transform:translateX(4px); }
 .cosmos-app[dir="ltr"] .rail-link:hover span { transform:translateX(0); }
+
+/* Home credits and partner logos stay in document flow at every viewport. */
+.cosmos-app.home-layout {
+  display: flex;
+  height: auto;
+  min-height: 100dvh;
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.home-layout .home-content {
+  position: relative;
+  inset: auto;
+  display: flex;
+  width: 100%;
+  min-height: calc(100dvh - 176px);
+  flex: 1 0 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(112px, 16vh, 150px) clamp(20px, 7vw, 110px) 10px;
+}
+.home-layout .orbit-note {
+  position: relative;
+  inset: auto;
+  align-self: flex-start;
+  margin: 0 0 8px clamp(25px, 5vw, 76px);
+}
+.home-credits {
+  width: min(100%, 920px);
+  margin: 0 auto 6px;
+  color: #9aa9c2;
+  font-size: clamp(10px, 1vw, 12px);
+  line-height: 1.45;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.home-layout .logo-footer {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  min-height: 60px;
+  flex: 0 0 auto;
+  margin: 0 auto max(10px, env(safe-area-inset-bottom));
+}
+
+@media (max-width: 760px) {
+  .home-layout .home-content {
+    min-height: calc(100dvh - 168px);
+    padding: 136px 22px 8px;
+  }
+  .home-layout .orbit-note {
+    margin: 0 0 8px 22px;
+  }
+  .home-credits {
+    max-width: 100%;
+    margin-bottom: 5px;
+    font-size: 10px;
+  }
+  .home-layout .logo-footer {
+    min-height: 52px;
+    margin-top: 0;
+  }
+}
+
+/* Math reuses the interactive solar scene while keeping its controls above it. */
+.math-planet-scene {
+  z-index: auto;
+  overflow: visible;
+}
+.math-planet-scene .science-webgl,
+.math-planet-scene .science-fallback-canvas {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+}
+.math-planet-scene .science-body-labels {
+  z-index: 5;
+}
+.math-planet-scene .science-body-label {
+  min-height: 27px;
+  padding: 4px 9px;
+  border-color: rgba(181, 224, 255, .34);
+  background: rgba(6, 13, 29, .82);
+  color: #eef7ff;
+  font-size: 11px;
+  font-weight: 600;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .9);
+  box-shadow: 0 3px 14px rgba(0, 0, 0, .38);
+}
+.math-planet-scene.is-fallback .science-body-label {
+  z-index: 5;
+}
+.math-planet-scene.is-fallback .science-body-labels {
+  z-index: 5;
+}
+.math-page .math-content-card {
+  background: linear-gradient(145deg, rgba(13, 26, 29, .5), rgba(4, 9, 13, .44));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.math-page .math-video-frame {
+  background: rgba(5, 10, 9, .42);
+}
+
+@media (max-width: 760px) {
+  .math-planet-scene .science-body-label {
+    min-height: 25px;
+    padding: 3px 7px;
+    font-size: 10px;
+  }
+}

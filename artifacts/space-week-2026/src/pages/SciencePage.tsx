@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { ArrowDownLeft, ArrowDownRight, RotateCcw } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
 import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor } from '@/components/solar-system-model';
+import { makeMathPlanetTexture } from '@/components/math-planet-textures';
 import LogoFooter from '@/components/LogoFooter';
 import { useLanguage } from '../i18n/LanguageContext';
 import { videos } from '../videos.js';
@@ -37,6 +38,7 @@ function placeProjectedLabels(
   width: number,
   height: number,
   selectedId: string | null,
+  preferAbove: boolean,
 ) {
   const placements = new Map<string, { x: number; y: number }>();
   const occupied: Array<{ x: number; y: number; width: number; height: number }> = [];
@@ -54,9 +56,11 @@ function placeProjectedLabels(
     }
     const old = previous.get(body.id);
     let best: { x: number; y: number; score: number } | null = null;
-    for (const ring of [1, 1.55, 2.15, 2.85]) {
+    for (const ring of [1, 1.55, 2.15, 2.85, 3.6]) {
       for (let index = 0; index < 8; index++) {
-        const angle = -Math.PI / 2 + index * Math.PI / 4;
+        const angle = preferAbove
+          ? [-Math.PI / 2, -Math.PI / 3, -2 * Math.PI / 3, -Math.PI / 4, -3 * Math.PI / 4, 0, Math.PI, Math.PI / 2][index]
+          : -Math.PI / 2 + index * Math.PI / 4;
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
         const extent = Math.abs(cos) * size.width / 2 + Math.abs(sin) * size.height / 2;
@@ -88,7 +92,94 @@ function placeProjectedLabels(
   return placements;
 }
 
-function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivElement | null; selectedId: string | null; onSelect: (id: string) => void }) {
+function drawMathPlanet(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  id: string,
+) {
+  const colors: Record<string, [string, string, string]> = {
+    mercury: ['#b8b3ab', '#77716e', '#3b3b43'],
+    venus: ['#ffe0a0', '#cf773c', '#8f412e'],
+    earth: ['#5cc8e8', '#2f8a5a', '#152c61'],
+    mars: ['#e8895c', '#a94634', '#54292c'],
+    jupiter: ['#f0d5a7', '#bc8868', '#72463c'],
+    saturn: ['#f0dfae', '#b8a071', '#786542'],
+    uranus: ['#c8f7ee', '#83d0d0', '#3f8794'],
+    neptune: ['#7a9dff', '#3154bd', '#17276e'],
+  };
+  const palette = colors[id];
+  if (!palette) return;
+  const [light, mid, dark] = palette;
+  context.save();
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.clip();
+  const face = context.createRadialGradient(x - radius * .34, y - radius * .38, radius * .05, x, y, radius * 1.15);
+  face.addColorStop(0, light);
+  face.addColorStop(.48, mid);
+  face.addColorStop(1, dark);
+  context.fillStyle = face;
+  context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  if (id === 'jupiter' || id === 'saturn' || id === 'uranus' || id === 'neptune') {
+    context.globalAlpha = .6;
+    for (let band = -3; band <= 3; band++) {
+      context.fillStyle = band % 2 ? light : dark;
+      context.beginPath();
+      context.ellipse(x, y + band * radius * .3, radius * 1.2, radius * .11, 0, 0, Math.PI * 2);
+      context.fill();
+    }
+    if (id === 'jupiter') {
+      context.globalAlpha = .95;
+      context.fillStyle = '#c65742';
+      context.beginPath();
+      context.ellipse(x + radius * .25, y + radius * .23, radius * .25, radius * .12, -.15, 0, Math.PI * 2);
+      context.fill();
+    }
+  } else if (id === 'earth') {
+    context.globalAlpha = .78;
+    context.fillStyle = '#46884f';
+    [[-.38, -.12, .34, .18], [.18, -.24, .37, .2], [.22, .36, .2, .32]].forEach(([dx, dy, rx, ry]) => {
+      context.beginPath();
+      context.ellipse(x + radius * dx, y + radius * dy, radius * rx, radius * ry, -.3, 0, Math.PI * 2);
+      context.fill();
+    });
+    context.strokeStyle = 'rgba(255,255,255,.8)';
+    context.lineWidth = Math.max(1, radius * .1);
+    for (let cloud = -1; cloud <= 1; cloud++) {
+      context.beginPath();
+      context.arc(x, y + radius * cloud * .3, radius * .86, Math.PI * 1.08, Math.PI * 1.88);
+      context.stroke();
+    }
+  } else {
+    const craterCount = id === 'mercury' ? 11 : 5;
+    for (let crater = 0; crater < craterCount; crater++) {
+      const angle = crater * 2.399;
+      const distance = radius * (.12 + ((crater * 37) % 61) / 100);
+      const cx = x + Math.cos(angle) * distance;
+      const cy = y + Math.sin(angle) * distance;
+      const craterRadius = radius * (id === 'mercury' ? .07 + (crater % 4) * .018 : .05 + (crater % 3) * .018);
+      context.fillStyle = 'rgba(52,32,28,.38)';
+      context.beginPath();
+      context.arc(cx, cy, craterRadius, 0, Math.PI * 2);
+      context.fill();
+      context.strokeStyle = 'rgba(255,226,190,.46)';
+      context.lineWidth = Math.max(.7, radius * .025);
+      context.stroke();
+    }
+  }
+  const shadow = context.createRadialGradient(x - radius * .15, y, radius * .2, x + radius * .48, y, radius * 1.1);
+  shadow.addColorStop(0, 'rgba(0,0,0,0)');
+  shadow.addColorStop(.6, 'rgba(0,0,0,.12)');
+  shadow.addColorStop(1, 'rgba(0,0,0,.72)');
+  context.globalAlpha = 1;
+  context.fillStyle = shadow;
+  context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  context.restore();
+}
+
+function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host: HTMLDivElement | null; selectedId: string | null; onSelect: (id: string) => void; mathMode: boolean }) {
   const { language } = useLanguage();
   const languageRef = useRef(language);
   languageRef.current = language;
@@ -201,7 +292,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
     };
     const draw = (time: number) => {
       if (disposed || document.hidden) return;
-      const selected = selectedRef.current;
+      const selected = mathMode ? null : selectedRef.current;
       const centuries = (Date.now() - epoch) / CENTURY_MS;
       if (selected !== activeFocusId) {
         transitionFromFocus.copy(viewFocus);
@@ -251,7 +342,9 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
         context.fill();
       });
       context.globalAlpha = 1;
-      const scale = Math.min(width / 22, height / 23) * .87;
+      const planetScale = mathMode ? 1.3 : 1;
+      const orbitScale = mathMode ? 1.28 : 1;
+      const scale = Math.min(width / (mathMode ? 31 : 22), height / (mathMode ? 29 : 23)) * .87;
       const cameraScale = scale * zoom * cameraZoom;
       const centerX = width * centerXRatio;
       const centerY = height * centerYRatio;
@@ -271,7 +364,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
         context.lineWidth = 1;
         context.beginPath();
         for (let step = 0; step <= 120; step++) {
-          const p = transform(orbitalPoint(spec, step / 120 * Math.PI * 2, 0));
+          const p = transform(orbitalPoint(spec, step / 120 * Math.PI * 2, 0).multiplyScalar(orbitScale));
           if (step === 0) context.moveTo(p.x, p.y);
           else context.lineTo(p.x, p.y);
         }
@@ -280,7 +373,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
         context.globalAlpha = 1;
       });
       const sunPoint = transform(new THREE.Vector3());
-      const sunRadius = Math.max(6, .78 * scale * .3) * zoom * cameraZoom;
+      const sunRadius = Math.max(6, .78 * scale * .3 * planetScale) * zoom * cameraZoom;
       const sunGlow = context.createRadialGradient(sunPoint.x, sunPoint.y, 1, sunPoint.x, sunPoint.y, sunRadius * 4.2);
       sunGlow.addColorStop(0, '#ffe8b4');
       sunGlow.addColorStop(.25, '#ffc276b8');
@@ -300,11 +393,13 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
       context.fill();
       lastPositions = new Map([['sun', { ...sunPoint, radius: sunRadius }]]);
       planets.forEach((spec) => {
-        const worldPosition = frozenPlanetId === spec.id && selected === spec.id
+        const worldPosition = !mathMode && frozenPlanetId === spec.id && selected === spec.id
           ? frozenPlanetPosition
-          : positionFor(spec, centuries);
+          : positionFor(spec, centuries).multiplyScalar(orbitScale);
         const point = transform(worldPosition);
-        const radius = Math.max(3.2, spec.size * scale * .3) * zoom * cameraZoom;
+        const radius = mathMode
+          ? Math.max(4.2 + spec.size * scale * .18 * planetScale, spec.size * scale * .3 * planetScale) * zoom * cameraZoom
+          : Math.max(3.2, spec.size * scale * .3) * zoom * cameraZoom;
         context.globalAlpha = opacityFor(spec.id);
         if (spec.id === 'saturn') {
           context.save();
@@ -328,6 +423,23 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
         context.beginPath();
         context.arc(point.x, point.y, radius, 0, Math.PI * 2);
         context.fill();
+        if (mathMode) drawMathPlanet(context, point.x, point.y, radius, spec.id);
+        if (mathMode && spec.id === 'saturn') {
+          context.save();
+          context.translate(point.x, point.y);
+          context.rotate(-.22 + angle);
+          context.beginPath();
+          context.ellipse(0, 0, radius * 2.05, radius * .64, 0, Math.PI, Math.PI * 2);
+          context.strokeStyle = 'rgba(238,222,184,.86)';
+          context.lineWidth = Math.max(1.4, radius * .18);
+          context.stroke();
+          context.strokeStyle = 'rgba(117,93,59,.62)';
+          context.lineWidth = Math.max(.8, radius * .07);
+          context.beginPath();
+          context.ellipse(0, 0, radius * 1.48, radius * .45, 0, Math.PI, Math.PI * 2);
+          context.stroke();
+          context.restore();
+        }
         context.shadowBlur = 0;
         lastPositions.set(spec.id, { ...point, radius });
       });
@@ -341,7 +453,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
         previousLabelPositions.clear();
         measuredLanguage = languageRef.current;
       }
-      const placements = placeProjectedLabels(projectedBodies, labels, labelSizes, previousLabelPositions, width, height, selected);
+      const placements = placeProjectedLabels(projectedBodies, labels, labelSizes, previousLabelPositions, width, height, selected, mathMode);
       placements.forEach((position, id) => {
         const label = labels.get(id);
         if (!label) return;
@@ -382,7 +494,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect }: { host: HTMLDivEl
   return <canvas ref={canvasRef} className="science-fallback-canvas" aria-hidden="true" />;
 }
 
-function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string) => void }) {
+export function ScienceScene({ selectedId, onSelect, mathMode = false }: { selectedId: string | null; onSelect: (id: string) => void; mathMode?: boolean }) {
   const { t, language } = useLanguage();
   const hostRef = useRef<HTMLDivElement>(null);
   const [webglFailed, setWebglFailed] = useState(false);
@@ -416,7 +528,10 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
     const desiredTarget = new THREE.Vector3();
     const cameraOffset = new THREE.Vector3();
     const projectedPoint = new THREE.Vector3();
-    const overviewDistance = window.innerWidth < 760 ? 56 : 28;
+    const planetScale = mathMode ? 1.3 : 1;
+    const orbitScale = mathMode ? 1.28 : 1;
+    const fitDistance = 16.5 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(window.innerWidth / Math.max(window.innerHeight, 1), 1));
+    const overviewDistance = mathMode ? Math.max(43, fitDistance) : window.innerWidth < 760 ? 56 : 28;
     const spherical = new THREE.Spherical(overviewDistance, 1.22, .48);
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
@@ -451,33 +566,36 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
     let measuredLanguage = languageRef.current;
     const previousLabelPositions = new Map<string, { x: number; y: number }>();
 
-    scene.add(new THREE.AmbientLight(0x9cb3d4, 1.15));
+    scene.add(new THREE.AmbientLight(0x9cb3d4, mathMode ? .55 : 1.15));
     scene.add(new THREE.PointLight(0xffd39a, 65, 65, 1.7));
+    const sunRadius = .78 * planetScale;
     const sun = new THREE.Mesh(
-      new THREE.SphereGeometry(.78, 32, 24),
-      new THREE.MeshStandardMaterial({ color: 0xffc17b, emissive: 0xff762b, emissiveIntensity: 1.8, roughness: .35 }),
+      new THREE.SphereGeometry(sunRadius, 32, 24),
+      new THREE.MeshStandardMaterial({ color: 0xffc17b, emissive: 0xff762b, emissiveIntensity: mathMode ? 2.3 : 1.8, roughness: .35 }),
     );
     sun.userData.bodyId = 'sun';
     scene.add(sun);
     meshes.set('sun', sun);
     selectables.push(sun);
-    const sunHalo = new THREE.Mesh(new THREE.SphereGeometry(.98, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffa65d, transparent: true, opacity: .18, side: THREE.BackSide }));
+    const sunHalo = new THREE.Mesh(new THREE.SphereGeometry(sunRadius * 1.26, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffa65d, transparent: true, opacity: .18, side: THREE.BackSide }));
     scene.add(sunHalo);
 
     const saturnRingGeometry = new THREE.RingGeometry(1.18, 1.62, 48);
     planets.forEach((spec) => {
       const points: THREE.Vector3[] = [];
-      for (let i = 0; i <= 128; i++) points.push(orbitalPoint(spec, i / 128 * Math.PI * 2, 0));
+      for (let i = 0; i <= 128; i++) points.push(orbitalPoint(spec, i / 128 * Math.PI * 2, 0).multiplyScalar(orbitScale));
       const orbit = new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(points),
         new THREE.LineBasicMaterial({ color: spec.id === 'earth' ? 0x4ea8df : 0x8295bd, transparent: true, opacity: spec.id === 'earth' ? .28 : .14 }),
       );
       scene.add(orbit);
+      const planetRadius = spec.size * planetScale;
       const planet = new THREE.Mesh(
-        new THREE.SphereGeometry(spec.size, 22, 16),
+        new THREE.SphereGeometry(planetRadius, 28, 22),
         new THREE.MeshStandardMaterial({
-          color: spec.color,
-          emissive: spec.color,
+          map: mathMode ? makeMathPlanetTexture(spec.id) : undefined,
+          color: mathMode ? 0xffffff : spec.color,
+          emissive: mathMode ? 0x000000 : spec.color,
           emissiveIntensity: .06,
           roughness: .82,
           transparent: true,
@@ -486,10 +604,27 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
       );
       planet.userData.bodyId = spec.id;
       if (spec.id === 'saturn') {
-        const ring = new THREE.Mesh(saturnRingGeometry, new THREE.MeshBasicMaterial({ color: 0xd4c19a, transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false }));
-        ring.scale.set(spec.size, spec.size, 1);
-        ring.rotation.x = Math.PI * .31;
-        planet.add(ring);
+        if (mathMode) {
+          [
+            { inner: 1.18, outer: 1.38, color: 0xeee0ba, opacity: .52 },
+            { inner: 1.41, outer: 1.72, color: 0xcbb787, opacity: .72 },
+            { inner: 1.76, outer: 1.88, color: 0x8d7959, opacity: .42 },
+            { inner: 1.94, outer: 2.18, color: 0xe6d5aa, opacity: .65 },
+          ].forEach(({ inner, outer, color, opacity }) => {
+            const ring = new THREE.Mesh(
+              new THREE.RingGeometry(inner, outer, 72),
+              new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
+            );
+            ring.scale.set(planetRadius, planetRadius, 1);
+            ring.rotation.x = Math.PI * .31;
+            planet.add(ring);
+          });
+        } else {
+          const ring = new THREE.Mesh(saturnRingGeometry, new THREE.MeshBasicMaterial({ color: 0xd4c19a, transparent: true, opacity: .7, side: THREE.DoubleSide, depthWrite: false }));
+          ring.scale.set(spec.size, spec.size, 1);
+          ring.rotation.x = Math.PI * .31;
+          planet.add(ring);
+        }
       }
       if (spec.id === 'uranus') {
         // Uranus's spin axis is tipped almost sideways; its narrow rings share that axial tilt.
@@ -512,6 +647,15 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
       scene.add(planet);
       meshes.set(spec.id, planet);
       selectables.push(planet);
+      if (mathMode) {
+        const hitArea = new THREE.Mesh(
+          new THREE.SphereGeometry(planetRadius * 1.65, 12, 10),
+          new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }),
+        );
+        hitArea.userData.bodyId = spec.id;
+        planet.add(hitArea);
+        selectables.push(hitArea);
+      }
     });
     const starPositions = new Float32Array((window.innerWidth < 720 ? 420 : 900) * 3);
     for (let i = 0; i < starPositions.length; i += 3) {
@@ -546,7 +690,7 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
         const y = (-screen.y * .5 + .5) * host.clientHeight;
         if (screen.z > -1 && screen.z < 1) {
           const distance = camera.position.distanceTo(mesh.position);
-          const radius = body.size * host.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance);
+          const radius = body.size * planetScale * host.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance);
           projectedBodies.push({ id: body.id, x, y, radius });
         } else {
           label.style.opacity = '0';
@@ -559,14 +703,14 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
         previousLabelPositions.clear();
         measuredLanguage = languageRef.current;
       }
-      const placements = placeProjectedLabels(projectedBodies, labelElements, labelSizes, previousLabelPositions, host.clientWidth, host.clientHeight, selectedRef.current);
+      const placements = placeProjectedLabels(projectedBodies, labelElements, labelSizes, previousLabelPositions, host.clientWidth, host.clientHeight, selectedRef.current, mathMode);
       placements.forEach((position, id) => {
         const label = labelElements.get(id);
         if (!label) return;
         label.style.left = `${position.x}px`;
         label.style.top = `${position.y}px`;
         label.style.transform = 'translate(-50%, -50%)';
-        label.style.opacity = selectedRef.current && selectedRef.current !== id ? '.26' : '1';
+        label.style.opacity = mathMode || !selectedRef.current || selectedRef.current === id ? '1' : '.26';
         label.style.pointerEvents = 'auto';
         label.tabIndex = 0;
       });
@@ -644,27 +788,27 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
       const centuries = (Date.now() - epoch) / CENTURY_MS;
       planets.forEach((spec) => {
         const mesh = meshes.get(spec.id)!;
-        if (selectedRef.current === spec.id) {
+        if (!mathMode && selectedRef.current === spec.id) {
           if (!frozen.has(spec.id)) frozen.set(spec.id, mesh.position.clone());
           const progress = Math.min(1, (slowProgress.get(spec.id) ?? 0) + delta / .85);
           slowProgress.set(spec.id, progress);
           const eased = progress * progress * (3 - 2 * progress);
-          mesh.position.copy(positionFor(spec, centuries)).lerp(frozen.get(spec.id)!, eased);
+          mesh.position.copy(positionFor(spec, centuries).multiplyScalar(orbitScale)).lerp(frozen.get(spec.id)!, eased);
         } else {
           frozen.delete(spec.id);
           slowProgress.delete(spec.id);
-          mesh.position.copy(positionFor(spec, centuries));
+          mesh.position.copy(positionFor(spec, centuries).multiplyScalar(orbitScale));
         }
         if (spec.id !== 'uranus') mesh.rotation.y += reduced ? 0 : spec.rotation * delta;
       });
-      const selected = selectedRef.current;
+      const selected = mathMode ? null : selectedRef.current;
       if (selected) {
         const selectedMesh = meshes.get(selected);
         if (selectedMesh) desiredTarget.copy(selectedMesh.position);
       } else desiredTarget.set(0, 0, 0);
       target.lerp(desiredTarget, reduced ? .16 : .075);
       const focusBody = bodies.find((body) => body.id === selected);
-      const focusDistance = focusBody ? Math.max(1.2, focusBody.size * 4.8) : 28;
+        const focusDistance = focusBody ? Math.max(1.2, focusBody.size * planetScale * 4.8) : 28;
       desiredDistance = focusBody ? focusDistance : zoomDistance;
       spherical.radius = THREE.MathUtils.lerp(spherical.radius, desiredDistance, reduced ? .18 : .065);
       cameraOffset.setFromSpherical(spherical);
@@ -672,11 +816,11 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
       camera.lookAt(target);
       meshes.forEach((mesh, id) => {
         const material = mesh.material as THREE.MeshStandardMaterial;
-        const opacity = selected && selected !== id ? .17 : 1;
+        const opacity = !mathMode && selected && selected !== id ? .17 : 1;
         material.opacity = THREE.MathUtils.lerp(material.opacity, opacity, .07);
         material.emissiveIntensity = id === 'sun'
-          ? selected === id ? 2.35 : hoveredId === id ? 2.05 : 1.8
-          : selected === id ? .48 : hoveredId === id ? .32 : .06;
+          ? selectedRef.current === id ? 2.35 : hoveredId === id ? 2.05 : mathMode ? 2.1 : 1.8
+          : mathMode && selectedRef.current === id ? .18 : !mathMode && selected === id ? .48 : hoveredId === id ? .32 : .06;
       });
       if (!reduced) starField.rotation.z = Math.sin(time * .00004) * .004;
       renderer.render(scene, camera);
@@ -715,8 +859,8 @@ function ScienceScene({ selectedId, onSelect }: { selectedId: string | null; onS
   }, []);
 
   return (
-    <div className={`science-scene${webglFailed ? ' is-fallback' : ''}`} ref={hostRef} data-testid="science-solar-scene">
-      {webglFailed && <ScienceCanvasFallback host={hostRef.current} selectedId={selectedId} onSelect={onSelect} />}
+      <div className={`science-scene${webglFailed ? ' is-fallback' : ''}${mathMode ? ' math-planet-scene' : ''}`} ref={hostRef} data-testid="science-solar-scene">
+      {webglFailed && <ScienceCanvasFallback host={hostRef.current} selectedId={selectedId} onSelect={onSelect} mathMode={mathMode} />}
       <div className="science-body-labels" aria-label={t.science.selectBody}>
         {bodies.map((body) => (
           <button

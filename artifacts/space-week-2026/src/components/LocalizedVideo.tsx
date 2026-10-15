@@ -55,15 +55,21 @@ export default function LocalizedVideo({
   const videoRef = useRef<HTMLVideoElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [failed, setFailed] = useState(false);
+  const [useWebmFallback, setUseWebmFallback] = useState(false);
+  const webmFallback = source?.kind === 'mp4'
+    && source.src.startsWith(`${window.location.origin}/videos/`)
+    && /\.mp4$/i.test(source.src)
+    ? source.src.replace(/\.mp4$/i, '.webm')
+    : null;
 
   useEffect(() => {
     const video = videoRef.current;
     const iframe = iframeRef.current;
+    setFailed(false);
+    setUseWebmFallback(false);
     return () => {
       if (video) {
         video.pause();
-        video.removeAttribute('src');
-        video.load();
       }
       if (iframe?.contentWindow) {
         iframe.contentWindow.postMessage(JSON.stringify({
@@ -89,7 +95,23 @@ export default function LocalizedVideo({
     );
   }
   if (source?.kind === 'mp4' && !failed) {
-    return <video className={mediaClassName} ref={videoRef} src={source.src} controls playsInline preload="metadata" aria-label={title} data-testid={testId} onError={() => { videoRef.current?.pause(); setFailed(true); }} />;
+    return (
+      <video
+        className={mediaClassName}
+        ref={videoRef}
+        src={useWebmFallback && webmFallback ? webmFallback : source.src}
+        controls
+        playsInline
+        preload="metadata"
+        aria-label={title}
+        data-testid={testId}
+        onError={() => {
+          videoRef.current?.pause();
+          if (webmFallback && !useWebmFallback) setUseWebmFallback(true);
+          else setFailed(true);
+        }}
+      />
+    );
   }
   return (
     <div className={placeholderClassName} data-testid={`${testId}-placeholder`}>

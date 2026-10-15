@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Video playback check</title>
+<style>body{margin:0;background:#111;color:white;font:16px sans-serif}video{display:block;width:100vw;height:70vh}#status{padding:16px}</style>
+<video id="video" controls playsinline preload="metadata" autoplay muted>
+  <source src="/videos/sun-Arabic_1791652157426.webm" type="video/webm">
+  <source src="/videos/sun-Arabic_1791652157426.mp4" type="video/mp4">
+</video>
+<div id="status">Waiting for media metadata…</div>
+<script>
+  const video = document.querySelector('#video');
+  const status = document.querySelector('#status');
+  video.addEventListener('loadedmetadata', () => status.textContent = `Metadata loaded: ${video.videoWidth}×${video.videoHeight}, ${video.duration.toFixed(1)}s`);
+  video.addEventListener('playing', () => status.textContent = 'Video is playing.');
+  video.addEventListener('error', () => status.textContent = `Video error code ${video.error?.code ?? 'unknown'}: ${video.error?.message ?? ''}`);
+  setTimeout(() => {
+    if (video.error) status.textContent = `Video error code ${video.error.code}: ${video.error.message ?? ''}`;
+    else if (!video.videoWidth) status.textContent = `No video frame. Ready state: ${video.readyState}; network state: ${video.networkState}`;
+  }, 5000);
+</script>
