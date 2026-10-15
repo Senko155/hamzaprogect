@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { ArrowDownLeft, ArrowDownRight, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
 import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor, visualSemiMajorAxis } from '@/components/solar-system-model';
+import { computeLayout, solarSystemConfig } from '@/components/solarSystemConfig';
 import { makeMathPlanetTexture, makeSunSurfaceTexture } from '@/components/math-planet-textures';
 import { planetExtraTextureUrls, planetSurfaceTextureUrl } from '@/components/planet-texture-sources';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -21,48 +22,11 @@ const bodies: Body[] = [
   ...planets.map(({ id, color, size }) => ({ id: id as PlanetId, color, size })),
 ];
 
-type MoonSpec = { name: string; color: number; size: number; orbit: number; period: number; phase: number };
-const moonsByPlanet: Record<string, MoonSpec[]> = {
-  earth: [{ name: 'Moon', color: 0xd9dce2, size: .14, orbit: 2.1, period: 19, phase: .4 }],
-  mars: [
-    { name: 'Phobos', color: 0xaaa59b, size: .075, orbit: 1.8, period: 12, phase: .3 },
-    { name: 'Deimos', color: 0xc4b9a9, size: .055, orbit: 2.55, period: 17, phase: 2.2 },
-  ],
-  jupiter: [
-    { name: 'Io', color: 0xd8b967, size: .1, orbit: 1.55, period: 12, phase: .2 },
-    { name: 'Europa', color: 0xd8c9aa, size: .085, orbit: 2.12, period: 16, phase: 1.4 },
-    { name: 'Ganymede', color: 0x9a8972, size: .145, orbit: 2.72, period: 22, phase: 2.9 },
-    { name: 'Callisto', color: 0x766f68, size: .12, orbit: 3.36, period: 28, phase: 4.3 },
-  ],
-  saturn: [
-    { name: 'Titan', color: 0xd8a956, size: .14, orbit: 2.45, period: 24, phase: .6 },
-    { name: 'Rhea', color: 0xb6b2a9, size: .09, orbit: 3.02, period: 17, phase: 2.3 },
-    { name: 'Dione', color: 0xc8c4b9, size: .075, orbit: 3.6, period: 14, phase: 4.1 },
-    { name: 'Enceladus', color: 0xe1e3dd, size: .065, orbit: 4.18, period: 11, phase: 5.3 },
-  ],
-  uranus: [
-    { name: 'Miranda', color: 0xa8a59c, size: .055, orbit: 1.95, period: 12, phase: .4 },
-    { name: 'Ariel', color: 0xc2bfb7, size: .07, orbit: 2.43, period: 16, phase: 1.6 },
-    { name: 'Umbriel', color: 0x77756f, size: .075, orbit: 2.92, period: 20, phase: 2.8 },
-    { name: 'Titania', color: 0xaaa69d, size: .1, orbit: 3.42, period: 25, phase: 4.1 },
-    { name: 'Oberon', color: 0x908d84, size: .09, orbit: 3.94, period: 30, phase: 5.4 },
-  ],
-  neptune: [{ name: 'Triton', color: 0xc4d0d0, size: .12, orbit: 2.2, period: 22, phase: .9 }],
-};
-
-const scienceOrbitAxes: Record<string, number> = {
-  mercury: 6,
-  venus: 10.5,
-  earth: 15,
-  mars: 22,
-  jupiter: 33,
-  saturn: 54,
-  uranus: 82,
-  neptune: 112,
-};
+const scienceLayout = computeLayout();
+const sciencePlanetsById = new Map(scienceLayout.planets.map((planet) => [planet.id, planet]));
 
 const scienceOrbitMultiplier = (spec: (typeof planets)[number]) =>
-  scienceOrbitAxes[spec.id] / visualSemiMajorAxis(spec.a);
+  (sciencePlanetsById.get(spec.id)?.orbitRadius ?? 1) / visualSemiMajorAxis(spec.a);
 
 function sceneOrbitalPoint(spec: (typeof planets)[number], anomaly: number, mathMode: boolean) {
   return orbitalPoint(spec, anomaly, 0).multiplyScalar(mathMode ? 1.28 : scienceOrbitMultiplier(spec));
@@ -72,15 +36,7 @@ function scenePositionFor(spec: (typeof planets)[number], centuries: number, mat
   return positionFor(spec, centuries).multiplyScalar(mathMode ? 1.28 : scienceOrbitMultiplier(spec));
 }
 
-const scienceSystemExtent = Math.max(
-  ...planets.map((spec) => {
-    const bodyRadius = spec.size * 2.4;
-    const ringExtent = spec.id === 'saturn' ? 2.22 : spec.id === 'uranus' ? 1.73 : 1;
-    const moonExtent = Math.max(0, ...(moonsByPlanet[spec.id] ?? []).map((moon) => bodyRadius * (moon.orbit + moon.size)));
-    return scienceOrbitAxes[spec.id] * (1 + spec.e) + Math.max(bodyRadius * ringExtent, moonExtent);
-  }),
-  .78 * 2.4 * 1.48,
-) + 4;
+const scienceSystemExtent = scienceLayout.systemExtent;
 
 const axialTilt: Record<string, number> = {
   sun: 7.25, mercury: .034, venus: 177.4, earth: 23.44,
@@ -197,6 +153,20 @@ function placeProjectedLabels(
   preferAbove: boolean,
   host: HTMLDivElement,
 ) {
+  if (!preferAbove) {
+    const placements = new Map<string, { x: number; y: number }>();
+    bodiesToPlace.forEach((body) => {
+      const label = labels.get(body.id);
+      const size = sizes.get(body.id);
+      if (!label || !size) return;
+      placements.set(body.id, {
+        x: body.x,
+        y: body.y - body.radius - size.height / 2 - 7,
+      });
+    });
+    return placements;
+  }
+
   const placements = new Map<string, { x: number; y: number }>();
   const occupied: Array<{ x: number; y: number; width: number; height: number }> = [];
   const hostRect = host.getBoundingClientRect();
@@ -462,27 +432,39 @@ function drawSciencePlanet(
   context.restore();
 }
 
-function drawScienceSaturnRings(context: CanvasRenderingContext2D, x: number, y: number, radius: number, rotation: number, front: boolean) {
-  const rings = [
-    { scale: 1.45, color: 'rgba(224,205,160,.44)', width: .11 },
-    { scale: 1.7, color: 'rgba(173,147,103,.72)', width: .16 },
-    { scale: 1.94, color: 'rgba(238,222,185,.78)', width: .12 },
-    { scale: 2.16, color: 'rgba(129,107,76,.52)', width: .09 },
+function drawScienceSaturnRings(
+  context: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  rotation: number,
+  front: boolean,
+  innerRadius: number,
+  outerRadius: number,
+) {
+  const colors = [
+    'rgba(224,205,160,.44)',
+    'rgba(173,147,103,.72)',
+    'rgba(238,222,185,.78)',
+    'rgba(129,107,76,.52)',
   ];
   context.save();
   context.translate(x, y);
   context.rotate(rotation);
-  rings.forEach(({ scale, color, width }) => {
+  colors.forEach((color, index) => {
+    const start = innerRadius + (outerRadius - innerRadius) * index / colors.length;
+    const end = innerRadius + (outerRadius - innerRadius) * (index + 1) / colors.length;
+    const scale = (start + end) / 2;
     context.beginPath();
     context.ellipse(0, 0, radius * scale, radius * scale * .34, 0, front ? Math.PI : 0, front ? Math.PI * 2 : Math.PI);
     context.strokeStyle = color;
-    context.lineWidth = Math.max(1, radius * width);
+    context.lineWidth = Math.max(.35, radius * (end - start) * .72);
     context.stroke();
   });
   context.restore();
 }
 
-function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTextureStatus }: { host: HTMLDivElement | null; selectedId: string | null; onSelect: (id: string) => void; mathMode: boolean; onEarthTextureStatus: (available: boolean) => void }) {
+function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host: HTMLDivElement | null; selectedId: string | null; onSelect: (id: string) => void; mathMode: boolean }) {
   const { language } = useLanguage();
   const languageRef = useRef(language);
   languageRef.current = language;
@@ -529,6 +511,12 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
     let loadedTextureId: string | null = null;
     let fallbackTextureRequest = 0;
     const epoch = J2000_EPOCH;
+    const fallbackMinZoom = mathMode
+      ? 0.55
+      : Math.max(0.55, scienceLayout.sunRadius / scienceSystemExtent * 40);
+    const fallbackMaxZoom = mathMode
+      ? 22
+      : Math.max(2, scienceSystemExtent / Math.min(...scienceLayout.planets.map((planet) => planet.radius)) * 0.04);
     const viewFocus = new THREE.Vector3();
     const transitionFromFocus = new THREE.Vector3();
     const transitionToFocus = new THREE.Vector3();
@@ -573,8 +561,9 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
       return { x: yawX, y: yawY * Math.cos(pitch) - z * Math.sin(pitch), z: yawY * Math.sin(pitch) + z * Math.cos(pitch) };
     };
     const clampPan = () => {
-      panX = THREE.MathUtils.clamp(panX, -width * .42, width * .42);
-      panY = THREE.MathUtils.clamp(panY, -height * .36, height * .36);
+      const configuredPanScale = mathMode ? 1 : scienceSystemExtent / (scienceSystemExtent + scienceLayout.sunRadius);
+      panX = THREE.MathUtils.clamp(panX, -width * .42 * configuredPanScale, width * .42 * configuredPanScale);
+      panY = THREE.MathUtils.clamp(panY, -height * .36 * configuredPanScale, height * .36 * configuredPanScale);
     };
     const onContextMenu = (event: Event) => event.preventDefault();
     const down = (event: PointerEvent) => {
@@ -595,7 +584,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
       if (pointers.size > 1) {
         const [a, b] = [...pointers.values()];
         const current = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinchDistance) zoom = THREE.MathUtils.clamp(pinchZoom * current / pinchDistance, .55, 22);
+        if (pinchDistance) zoom = THREE.MathUtils.clamp(pinchZoom * current / pinchDistance, fallbackMinZoom, fallbackMaxZoom);
         const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         if (!mathMode && pinchCenter) {
           panX += center.x - pinchCenter.x;
@@ -637,7 +626,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
     };
     const wheel = (event: WheelEvent) => {
       event.preventDefault();
-      zoom = THREE.MathUtils.clamp(zoom * Math.exp(-event.deltaY * .001), .55, 22);
+      zoom = THREE.MathUtils.clamp(zoom * Math.exp(-event.deltaY * .001), fallbackMinZoom, fallbackMaxZoom);
     };
     const requestFallbackTexture = (bodyId: string | null) => {
       if (mathMode || bodyId === loadedTextureId) return;
@@ -685,18 +674,24 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
         if (selected && focusBody?.id !== 'sun') {
           const spec = planets.find((planet) => planet.id === selected);
           if (spec) {
-            transitionToFocus.copy(positionFor(spec, centuries));
+            transitionToFocus.copy(scenePositionFor(spec, centuries, mathMode));
             frozenPlanetId = spec.id;
             frozenPlanetPosition.copy(transitionToFocus);
           }
         } else frozenPlanetId = null;
-        const baseRadius = focusBody?.id === 'sun'
-          ? Math.max(6, .78 * Math.min(width / 22, height / 23) * .87 * .3)
+        const focusExtent = focusBody?.id === 'sun'
+          ? scienceLayout.sunRadius
           : focusBody
-            ? Math.max(3.2, focusBody.size * Math.min(width / 22, height / 23) * .87 * .3)
+            ? sciencePlanetsById.get(focusBody.id)?.territoryRadius ?? focusBody.size
             : 1;
+        const fitDimension = Math.min(width, height);
+        const baseScale = mathMode
+          ? Math.min(width / 31, height / 29) * .87
+          : Math.min(width, height) * .84 / (2 * scienceSystemExtent);
         transitionToZoom = focusBody
-          ? THREE.MathUtils.clamp(.33 * width / (baseRadius * zoom), 2, 60)
+          ? mathMode
+            ? THREE.MathUtils.clamp(.33 * width / (Math.max(1, focusExtent * baseScale) * zoom), 2, 60)
+            : THREE.MathUtils.clamp((fitDimension * .33) / (Math.max(1, focusExtent * baseScale) * zoom), 1, 60)
           : 1;
         transitionToX = selected ? width < 760 ? .53 : .62 : .5;
         transitionToY = selected ? width < 760 ? .35 : .42 : .52;
@@ -719,8 +714,10 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
         context.fill();
       });
       context.globalAlpha = 1;
-      const planetScale = mathMode ? 1.3 : 2.4;
-      const scale = Math.min(width / (mathMode ? 31 : 22), height / (mathMode ? 29 : 23)) * .87;
+      const planetScale = mathMode ? 1.3 : 1;
+      const scale = mathMode
+        ? Math.min(width / 31, height / 29) * .87
+        : Math.min(width, height) * .84 / (2 * scienceSystemExtent);
       const cameraScale = scale * zoom * cameraZoom;
       const centerX = width * centerXRatio;
       const centerY = height * centerYRatio;
@@ -737,10 +734,10 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
       planets.forEach((spec) => {
         context.globalAlpha = (spec.id === 'earth' ? .29 : .15) * (1 - focusLevel * .72);
         context.strokeStyle = spec.id === 'earth' ? '#55bbeb' : '#8ba2c5';
-        context.lineWidth = 1;
+        context.lineWidth = .55;
         context.beginPath();
-        for (let step = 0; step <= 120; step++) {
-          const p = transform(sceneOrbitalPoint(spec, step / 120 * Math.PI * 2, mathMode));
+        for (let step = 0; step <= 256; step++) {
+          const p = transform(sceneOrbitalPoint(spec, step / 256 * Math.PI * 2, mathMode));
           if (step === 0) context.moveTo(p.x, p.y);
           else context.lineTo(p.x, p.y);
         }
@@ -749,7 +746,9 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
         context.globalAlpha = 1;
       });
       const sunPoint = transform(new THREE.Vector3());
-      const sunRadius = Math.max(mathMode ? 6 : 7.8, .78 * scale * .3 * planetScale) * zoom * cameraZoom;
+      const sunRadius = mathMode
+        ? Math.max(6, .78 * scale * .3 * planetScale) * zoom * cameraZoom
+        : Math.max(2.4, scienceLayout.sunRadius * cameraScale);
       const sunGlow = context.createRadialGradient(sunPoint.x, sunPoint.y, 1, sunPoint.x, sunPoint.y, sunRadius * 4.2);
       sunGlow.addColorStop(0, '#ffe8b4');
       sunGlow.addColorStop(.25, '#ffc276b8');
@@ -788,9 +787,10 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
           ? frozenPlanetPosition
           : scenePositionFor(spec, centuries, mathMode);
         const point = transform(worldPosition);
+        const planetLayout = sciencePlanetsById.get(spec.id);
         const radius = mathMode
           ? Math.max(5.5 + spec.size * scale * .36 * planetScale, spec.size * scale * .3 * planetScale) * zoom * cameraZoom
-          : Math.max(4.16, spec.size * scale * .3 * planetScale) * zoom * cameraZoom;
+          : Math.max(2.1, (planetLayout?.radius ?? 1) * cameraScale);
         context.globalAlpha = opacityFor(spec.id);
         if (spec.id === 'saturn' && mathMode) {
           context.save();
@@ -802,8 +802,17 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
           context.lineWidth = Math.max(1.5, radius * .24);
           context.stroke();
           context.restore();
-        } else if (spec.id === 'saturn') {
-          drawScienceSaturnRings(context, point.x, point.y, radius, -.22 + angle, false);
+        } else if (spec.id === 'saturn' && planetLayout) {
+          drawScienceSaturnRings(
+            context,
+            point.x,
+            point.y,
+            radius,
+            -.22 + angle,
+            false,
+            planetLayout.ringInnerRadius / planetLayout.radius,
+            planetLayout.ringOuterRadius / planetLayout.radius,
+          );
         }
         const color = `#${spec.color.toString(16).padStart(6, '0')}`;
         const glow = context.createRadialGradient(point.x - radius * .35, point.y - radius * .35, 1, point.x, point.y, radius * 2.7);
@@ -818,7 +827,29 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
         context.fill();
         if (mathMode) drawMathPlanet(context, point.x, point.y, radius, spec.id, sunPoint.x, sunPoint.y);
         else drawSciencePlanet(context, point.x, point.y, radius, spec.id, sunPoint.x, sunPoint.y, planetTextures.get(spec.id), time * 2 * Math.PI / (Math.abs(rotationPeriod[spec.id] ?? 30) * 1000) * Math.sign(rotationPeriod[spec.id] ?? 1));
-        if (!mathMode && spec.id === 'saturn') drawScienceSaturnRings(context, point.x, point.y, radius, -.22 + angle, true);
+        if (!mathMode && spec.id === 'saturn' && planetLayout) {
+          drawScienceSaturnRings(
+            context,
+            point.x,
+            point.y,
+            radius,
+            -.22 + angle,
+            true,
+            planetLayout.ringInnerRadius / planetLayout.radius,
+            planetLayout.ringOuterRadius / planetLayout.radius,
+          );
+        }
+        if (!mathMode && spec.id === 'uranus' && planetLayout) {
+          context.save();
+          context.translate(point.x, point.y);
+          context.rotate(-.22 + angle);
+          context.beginPath();
+          context.ellipse(0, 0, planetLayout.ringOuterRadius * cameraScale, planetLayout.ringOuterRadius * cameraScale * .34, 0, 0, Math.PI * 2);
+          context.strokeStyle = 'rgba(159,197,205,.36)';
+          context.lineWidth = Math.max(.45, (planetLayout.ringOuterRadius - planetLayout.ringInnerRadius) * cameraScale * .35);
+          context.stroke();
+          context.restore();
+        }
         if (mathMode && spec.id === 'saturn') {
           context.save();
           context.translate(point.x, point.y);
@@ -839,20 +870,31 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
         lastPositions.set(spec.id, { ...point, radius });
       });
       if (!mathMode) {
-        Object.entries(moonsByPlanet).forEach(([planetId, moonSpecs]) => {
+        scienceLayout.planets.forEach((planetLayout) => {
+          const planetId = planetLayout.id;
           const planetPoint = lastPositions.get(planetId);
           if (!planetPoint) return;
-          moonSpecs.forEach((moonSpec, index) => {
-            const orbitRadius = planetPoint.radius * moonSpec.orbit;
-            const orbitAngle = time * 2 * Math.PI / (moonSpec.period * 1000) + moonSpec.phase;
-            const moonX = planetPoint.x + Math.cos(orbitAngle) * orbitRadius;
-            const moonY = planetPoint.y + Math.sin(orbitAngle) * orbitRadius * .72;
+          const orbitOpacity = selected
+            ? .1
+            : THREE.MathUtils.smoothstep(zoom * cameraZoom, 1.25, 2.4) * .1;
+          planetLayout.moons.forEach((moonSpec, index) => {
+            const orbitRadius = moonSpec.orbitRadius * cameraScale;
+            const orbitAngle = time * moonSpec.speed / 1000 + moonSpec.phase;
+            const inclination = THREE.MathUtils.degToRad(moonSpec.inclination);
+            const moonX = planetPoint.x + orbitRadius * (
+              Math.cos(orbitAngle) * Math.cos(inclination) -
+              Math.sin(orbitAngle) * .72 * Math.sin(inclination)
+            );
+            const moonY = planetPoint.y + orbitRadius * (
+              Math.cos(orbitAngle) * Math.sin(inclination) +
+              Math.sin(orbitAngle) * .72 * Math.cos(inclination)
+            );
             context.beginPath();
-            context.ellipse(planetPoint.x, planetPoint.y, orbitRadius, orbitRadius * .72, 0, 0, Math.PI * 2);
-            context.strokeStyle = 'rgba(191,213,242,.24)';
-            context.lineWidth = Math.max(1, planetPoint.radius * .012);
+            context.ellipse(planetPoint.x, planetPoint.y, orbitRadius, orbitRadius * .72, inclination, 0, Math.PI * 2);
+            context.strokeStyle = `rgba(191,213,242,${orbitOpacity})`;
+            context.lineWidth = .55;
             context.stroke();
-            const moonRadius = Math.max(1.8, planetPoint.radius * moonSpec.size);
+            const moonRadius = Math.max(1, moonSpec.radius * cameraScale);
             const moonShade = context.createRadialGradient(moonX - moonRadius * .35, moonY - moonRadius * .35, .3, moonX, moonY, moonRadius);
             const moonColor = `#${moonSpec.color.toString(16).padStart(6, '0')}`;
             moonShade.addColorStop(0, '#f0eee7');
@@ -890,7 +932,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTe
         if (!label) return;
         label.style.left = `${position.x}px`;
         label.style.top = `${position.y}px`;
-        label.style.transform = 'translate(-50%, -50%)';
+        label.style.transform = `translate(-50%, -50%) scale(${selected ? 1 : 0.78})`;
         label.style.opacity = String(opacityFor(id));
         label.style.pointerEvents = 'auto';
         label.tabIndex = 0;
@@ -958,7 +1000,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       return;
     }
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(40, 1, .1, 120);
+    const camera = new THREE.PerspectiveCamera(40, 1, .1, 6000);
     const target = new THREE.Vector3();
     const desiredTarget = new THREE.Vector3();
     const cameraOffset = new THREE.Vector3();
@@ -966,7 +1008,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const cameraDirection = new THREE.Vector3();
     const screenUp = new THREE.Vector3();
     const projectedPoint = new THREE.Vector3();
-    const planetScale = mathMode ? 1.3 : 2.4;
+    const planetScale = mathMode ? 1.3 : 1;
     const orbitScale = mathMode ? 1.28 : 1;
     const overviewDistanceForViewport = () => {
       const width = mathMode ? window.innerWidth : host.clientWidth || window.innerWidth;
@@ -977,10 +1019,12 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         const fitDistance = 16.5 / (verticalTangent * Math.min(aspect, 1));
         return Math.max(43, fitDistance);
       }
-      const ringAwareMargin = aspect < .7 ? 1.5 : 1.16;
-      return (10.7 * ringAwareMargin) / (verticalTangent * Math.min(aspect, 1));
+      const responsiveMargin = aspect < .7 ? 1.18 : 1.12;
+      return (scienceSystemExtent * 1.04 * responsiveMargin) / (verticalTangent * Math.min(aspect, 1));
     };
     let overviewDistance = overviewDistanceForViewport();
+    camera.far = Math.max(6000, overviewDistance * 2.4);
+    camera.updateProjectionMatrix();
     const spherical = new THREE.Spherical(overviewDistance, 1.22, .48);
     let desiredTheta = spherical.theta;
     let desiredPhi = spherical.phi;
@@ -994,10 +1038,43 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const basePlanetTextures = new Map<string, THREE.Texture>();
     const atmospheres = new Map<string, THREE.Mesh>();
     const specialLayers = new Map<string, THREE.Mesh>();
-    const moonAssemblies: Array<{ planetId: string; orbit: THREE.Group; period: number }> = [];
-    const moonMaterials = new Map<number, THREE.MeshStandardMaterial>();
+    const hitAreas = new Map<string, THREE.Mesh>();
+    const moonAssemblies: Array<{ planetId: string; orbit: THREE.Group; speed: number }> = [];
+    const sharedMoonMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .92, metalness: 0 });
+    const moonOrbitLines: Array<{ line: THREE.LineLoop; planetId: string; territoryRadius: number }> = [];
     const loadedSelectionTextures: THREE.Texture[] = [];
     const sharedSphere = new THREE.SphereGeometry(1, 56, 40);
+    const sharedOrbitGeometry = new THREE.BufferGeometry().setFromPoints(
+      Array.from({ length: 256 }, (_, index) => {
+        const angle = index / 256 * Math.PI * 2;
+        return new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+      }),
+    );
+    const planetOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0x8295bd,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+    });
+    const moonOrbitMaterial = new THREE.LineBasicMaterial({
+      color: 0xc5d9f3,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    const debugTerritoryMaterial = new THREE.MeshBasicMaterial({
+      color: 0x9cd8ff,
+      transparent: true,
+      opacity: 0.065,
+      wireframe: true,
+      depthWrite: false,
+    });
+    const invisibleHitMaterial = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      colorWrite: false,
+      depthWrite: false,
+    });
     const textureLoader = new THREE.TextureLoader();
     textureLoader.setCrossOrigin('anonymous');
     const nightSunDirection = new THREE.Vector3();
@@ -1012,7 +1089,11 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const epoch = J2000_EPOCH;
     let desiredDistance = overviewDistance;
     let zoomDistance = overviewDistance;
-    const maxZoomDistance = () => mathMode ? 60 : Math.max(60, overviewDistance * 1.8);
+    const minimumZoomDistance = Math.max(
+      0.5,
+      Math.min(scienceLayout.sunRadius * 0.12, ...scienceLayout.planets.map((planet) => planet.radius * 0.5)),
+    );
+    const maxZoomDistance = () => mathMode ? 60 : Math.max(minimumZoomDistance * 1.5, overviewDistance * 1.75);
     let dragging: { id: number; x: number; y: number; moved: boolean } | null = null;
     let dragMode: 'rotate' | 'pan' = 'rotate';
     let gestureMoved = false;
@@ -1047,7 +1128,9 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const previousLabelPositions = new Map<string, { x: number; y: number }>();
 
     scene.add(new THREE.AmbientLight(0x9cb3d4, mathMode ? .55 : .2));
-    const solarLight = new THREE.PointLight(0xffd39a, 65, 65, 1.7);
+    const solarLight = mathMode
+      ? new THREE.PointLight(0xffd39a, 65, 65, 1.7)
+      : new THREE.PointLight(0xffd39a, 3.6, 0, 0);
     if (!mathMode) {
       solarLight.castShadow = true;
       solarLight.shadow.mapSize.set(512, 512);
@@ -1058,7 +1141,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     }
     scene.add(solarLight);
-    const sunRadius = .78 * planetScale;
+    const sunRadius = mathMode ? .78 * planetScale : scienceLayout.sunRadius;
     const sunRoot = new THREE.Group();
     scene.add(sunRoot);
     const sunMaterial = new THREE.MeshStandardMaterial({
@@ -1072,11 +1155,16 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     sun.scale.setScalar(sunRadius);
     sun.userData.bodyId = 'sun';
     sunRoot.add(sun);
-    sunRoot.rotation.x = THREE.MathUtils.degToRad(90 - axialTilt.sun);
+    sunRoot.rotation.x = THREE.MathUtils.degToRad(90 - (mathMode ? axialTilt.sun : solarSystemConfig.sun.axialTilt));
     bodyRoots.set('sun', sunRoot);
     spinGroups.set('sun', sunRoot);
     meshes.set('sun', sun);
-    selectables.push(sun);
+    const sunHitArea = new THREE.Mesh(sharedSphere, invisibleHitMaterial);
+    sunHitArea.scale.setScalar(sunRadius * 1.6);
+    sunHitArea.userData.bodyId = 'sun';
+    sunRoot.add(sunHitArea);
+    hitAreas.set('sun', sunHitArea);
+    selectables.push(sun, sunHitArea);
     const sunHalo = new THREE.Mesh(
       sharedSphere,
       new THREE.MeshBasicMaterial({ color: 0xffa65d, transparent: true, opacity: mathMode ? .18 : .15, side: THREE.BackSide }),
@@ -1095,20 +1183,28 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const sunBaseTexture = sunMaterial.map;
     if (sunBaseTexture) basePlanetTextures.set('sun', sunBaseTexture);
     planets.forEach((spec) => {
-      const points: THREE.Vector3[] = [];
-      for (let i = 0; i <= 128; i++) points.push(orbitalPoint(spec, i / 128 * Math.PI * 2, 0).multiplyScalar(orbitScale));
-      scene.add(new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(points),
-        new THREE.LineBasicMaterial({ color: spec.id === 'earth' ? 0x4ea8df : 0x8295bd, transparent: true, opacity: spec.id === 'earth' ? .28 : .14 }),
-      ));
-      const planetRadius = spec.size * planetScale;
+      const planetLayout = sciencePlanetsById.get(spec.id);
+      if (mathMode) {
+        const points: THREE.Vector3[] = [];
+        for (let i = 0; i <= 128; i++) points.push(orbitalPoint(spec, i / 128 * Math.PI * 2, 0).multiplyScalar(orbitScale));
+        scene.add(new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints(points),
+          new THREE.LineBasicMaterial({ color: spec.id === 'earth' ? 0x4ea8df : 0x8295bd, transparent: true, opacity: spec.id === 'earth' ? .28 : .14 }),
+        ));
+      } else if (planetLayout) {
+        const orbitLine = new THREE.LineLoop(sharedOrbitGeometry, planetOrbitMaterial);
+        orbitLine.scale.set(planetLayout.orbitRadius, 1, planetLayout.orbitRadius);
+        orbitLine.userData.bodyId = spec.id;
+        scene.add(orbitLine);
+      }
+      const planetRadius = mathMode ? spec.size * planetScale : planetLayout?.radius ?? spec.size;
       const root = new THREE.Group();
       scene.add(root);
       bodyRoots.set(spec.id, root);
       const axialGroup = new THREE.Group();
       axialGroup.rotation.x = mathMode
         ? spec.id === 'uranus' ? THREE.MathUtils.degToRad(98) : 0
-        : THREE.MathUtils.degToRad(90 - (axialTilt[spec.id] ?? 0));
+        : THREE.MathUtils.degToRad(90 - (planetLayout?.axialTilt ?? 0));
       root.add(axialGroup);
       const spinGroup = new THREE.Group();
       axialGroup.add(spinGroup);
@@ -1156,7 +1252,14 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
               { inner: 1.76, outer: 1.88, color: 0x8d7959, opacity: .42 },
               { inner: 1.94, outer: 2.18, color: 0xe6d5aa, opacity: .65 },
             ]
-          : [{ inner: 1.08, outer: 2.22, color: 0xd9c7a0, opacity: .92 }];
+          : planetLayout
+            ? [{
+                inner: planetLayout.ringInnerRadius / planetRadius,
+                outer: planetLayout.ringOuterRadius / planetRadius,
+                color: 0xd9c7a0,
+                opacity: .92,
+              }]
+            : [];
         ringBands.forEach(({ inner, outer, color, opacity }) => {
           const ring = new THREE.Mesh(
             new THREE.RingGeometry(inner, outer, 144),
@@ -1171,18 +1274,27 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         });
       }
       if (spec.id === 'uranus') {
-        const uranusBands = [
-          { inner: 1.2, outer: 1.29, color: 0x7899a4, opacity: .2 },
-          { inner: 1.36, outer: 1.4, color: 0x9ab8c0, opacity: .13 },
-          { inner: 1.47, outer: 1.58, color: 0x657e8b, opacity: .18 },
-          { inner: 1.68, outer: 1.73, color: 0xacc3c6, opacity: .1 },
-        ];
+        const uranusBands = mathMode
+          ? [
+              { inner: 1.2, outer: 1.29, color: 0x7899a4, opacity: .2 },
+              { inner: 1.36, outer: 1.4, color: 0x9ab8c0, opacity: .13 },
+              { inner: 1.47, outer: 1.58, color: 0x657e8b, opacity: .18 },
+              { inner: 1.68, outer: 1.73, color: 0xacc3c6, opacity: .1 },
+            ]
+          : planetLayout
+            ? [{
+                inner: planetLayout.ringInnerRadius / planetRadius,
+                outer: planetLayout.ringOuterRadius / planetRadius,
+                color: 0x8caeb5,
+                opacity: .18,
+              }]
+            : [];
         uranusBands.forEach(({ inner, outer, color, opacity }) => {
           const ring = new THREE.Mesh(
             new THREE.RingGeometry(inner, outer, 88),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
           );
-          ring.scale.setScalar(mathMode ? spec.size : planetRadius);
+          ring.scale.setScalar(planetRadius);
           ring.rotation.x = mathMode ? 0 : -Math.PI / 2;
           axialGroup.add(ring);
         });
@@ -1233,45 +1345,70 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         specialLayers.set('venusCloud', cloudShell);
       }
 
-      const hitArea = new THREE.Mesh(sharedSphere, new THREE.MeshBasicMaterial({
-        transparent: true,
-        opacity: 0,
-        colorWrite: false,
-        depthWrite: false,
-      }));
+      const hitArea = new THREE.Mesh(sharedSphere, invisibleHitMaterial);
       hitArea.scale.setScalar(planetRadius * (mathMode ? 1.65 : 1.6));
       hitArea.userData.bodyId = spec.id;
       root.add(hitArea);
+      hitAreas.set(spec.id, hitArea);
       selectables.push(planet, hitArea);
 
       if (!mathMode) {
-        (moonsByPlanet[spec.id] ?? []).forEach((moonSpec) => {
-          let moonMaterial = moonMaterials.get(moonSpec.color);
-          if (!moonMaterial) {
-            moonMaterial = new THREE.MeshStandardMaterial({ color: moonSpec.color, roughness: .92, metalness: 0 });
-            moonMaterials.set(moonSpec.color, moonMaterial);
-          }
+        (planetLayout?.moons ?? []).forEach((moonSpec) => {
           const orbitGroup = new THREE.Group();
-          const moonDistance = planetRadius * moonSpec.orbit;
-          const orbitPoints = Array.from({ length: 65 }, (_, index) => {
-            const angle = index / 64 * Math.PI * 2;
-            return new THREE.Vector3(Math.cos(angle) * moonDistance, 0, Math.sin(angle) * moonDistance);
+          orbitGroup.rotation.x = THREE.MathUtils.degToRad(moonSpec.inclination);
+          const moonDistance = moonSpec.orbitRadius;
+          const orbitLine = new THREE.LineLoop(sharedOrbitGeometry, moonOrbitMaterial);
+          orbitLine.scale.set(moonDistance, 1, moonDistance);
+          orbitLine.userData.opacity = 0;
+          orbitLine.onBeforeRender = () => {
+            moonOrbitMaterial.opacity = orbitLine.userData.opacity as number;
+          };
+          orbitGroup.add(orbitLine);
+          moonOrbitLines.push({
+            line: orbitLine,
+            planetId: spec.id,
+            territoryRadius: planetLayout?.territoryRadius ?? planetRadius,
           });
-          orbitGroup.add(new THREE.Line(
-            new THREE.BufferGeometry().setFromPoints(orbitPoints),
-            new THREE.LineBasicMaterial({ color: 0xc5d9f3, transparent: true, opacity: .24 }),
-          ));
-          const moon = new THREE.Mesh(sharedSphere, moonMaterial);
-          moon.scale.setScalar(planetRadius * moonSpec.size);
-          moon.position.x = moonDistance;
+          const moon = new THREE.Mesh(sharedSphere, sharedMoonMaterial);
+          moon.userData.moonColor = moonSpec.color;
+          moon.onBeforeRender = () => {
+            sharedMoonMaterial.color.setHex(moon.userData.moonColor as number);
+          };
+          moon.scale.setScalar(moonSpec.radius);
+          moon.position.set(
+            Math.cos(moonSpec.phase) * moonDistance,
+            0,
+            Math.sin(moonSpec.phase) * moonDistance,
+          );
           moon.castShadow = true;
           moon.receiveShadow = true;
           orbitGroup.add(moon);
           axialGroup.add(orbitGroup);
-          moonAssemblies.push({ planetId: spec.id, orbit: orbitGroup, period: moonSpec.period });
+          moonAssemblies.push({ planetId: spec.id, orbit: orbitGroup, speed: moonSpec.speed });
         });
       }
+
+      if (!mathMode && planetLayout) {
+        const territory = new THREE.Mesh(sharedSphere, debugTerritoryMaterial);
+        territory.scale.setScalar(planetLayout.territoryRadius);
+        territory.visible = import.meta.env.DEV && new URLSearchParams(window.location.search).get('debug') === 'orbits';
+        territory.userData.territoryFor = spec.id;
+        root.add(territory);
+      }
     });
+    if (!mathMode && import.meta.env.DEV && new URLSearchParams(window.location.search).get('debug') === 'orbits') {
+      console.table(scienceLayout.planets.map((planet) => ({
+        planet: planet.id,
+        visualRadius: planet.radius,
+        orbitRadius: planet.orbitRadius,
+        ringInner: planet.ringInnerRadius || '—',
+        ringOuter: planet.ringOuterRadius || '—',
+        territoryRadius: planet.territoryRadius,
+        nearestGap: Number.isFinite(planet.nearestGap) ? planet.nearestGap : 'outermost',
+        moonSpread: planet.moonSpread,
+        moonOrbits: planet.moons.map((moon) => `${moon.name}: ${moon.orbitRadius.toFixed(1)}`).join(', ') || '—',
+      })));
+    }
     const loadExternalTexture = (url: string) => new Promise<THREE.Texture>((resolve, reject) => {
       textureLoader.load(url, resolve, undefined, reject);
     });
@@ -1288,7 +1425,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       specialLayers.get('earthCloud') && (specialLayers.get('earthCloud')!.visible = false);
       specialLayers.get('earthNight') && (specialLayers.get('earthNight')!.visible = false);
       specialLayers.get('venusCloud') && (specialLayers.get('venusCloud')!.visible = false);
-      moonMaterials.forEach((material) => { material.map = null; });
+      sharedMoonMaterial.map = null;
       loadedSelectionTextures.splice(0).forEach((texture) => texture.dispose());
       sunMaterial.needsUpdate = true;
       planetMaterials.forEach((material) => { material.needsUpdate = true; });
@@ -1296,7 +1433,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       if (earthNightMaterial) earthNightMaterial.needsUpdate = true;
       if (venusCloudMaterial) venusCloudMaterial.needsUpdate = true;
       if (saturnRingMaterial) saturnRingMaterial.needsUpdate = true;
-      moonMaterials.forEach((material) => { material.needsUpdate = true; });
+      sharedMoonMaterial.needsUpdate = true;
     };
     const setSelectedTexture = async (bodyId: string, requestId: number) => {
       const resolution = window.innerWidth >= 1000 ? '4k' : '2k';
@@ -1367,12 +1504,10 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
           saturnRingMaterial!.needsUpdate = true;
         });
       }
-      if ((moonsByPlanet[bodyId] ?? []).length) {
+      if ((sciencePlanetsById.get(bodyId)?.moons.length ?? 0) > 0) {
         void loadExtra(planetExtraTextureUrls.moon, (texture) => {
-          moonMaterials.forEach((material) => {
-            material.map = texture;
-            material.needsUpdate = true;
-          });
+          sharedMoonMaterial.map = texture;
+          sharedMoonMaterial.needsUpdate = true;
         });
       }
     };
@@ -1384,10 +1519,11 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       if (bodyId) void setSelectedTexture(bodyId, textureRequestId);
     };
     const starPositions = new Float32Array((window.innerWidth < 720 ? 420 : 900) * 3);
+    const starSpread = mathMode ? 50 : scienceSystemExtent * 1.8;
     for (let i = 0; i < starPositions.length; i += 3) {
-      starPositions[i] = (Math.random() - .5) * 50;
-      starPositions[i + 1] = (Math.random() - .5) * 34;
-      starPositions[i + 2] = -8 - Math.random() * 25;
+      starPositions[i] = (Math.random() - .5) * starSpread;
+      starPositions[i + 1] = (Math.random() - .5) * starSpread * .68;
+      starPositions[i + 2] = mathMode ? -8 - Math.random() * 25 : -scienceSystemExtent * (.4 + Math.random() * .8);
     }
     const starGeometry = new THREE.BufferGeometry();
     starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
@@ -1401,6 +1537,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         const zoomRatio = zoomDistance / overviewDistance;
         overviewDistance = overviewDistanceForViewport();
         zoomDistance = overviewDistance * zoomRatio;
+        camera.far = Math.max(6000, overviewDistance * 2.4);
       }
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
@@ -1421,8 +1558,13 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         const y = (-screen.y * .5 + .5) * host.clientHeight;
         if (screen.z > -1 && screen.z < 1) {
           const distance = camera.position.distanceTo(root.position);
-          const ringExtent = body.id === 'saturn' ? 2.22 : body.id === 'uranus' ? 1.73 : 1;
-          const radius = body.size * planetScale * ringExtent * host.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance);
+          const planetLayout = sciencePlanetsById.get(body.id);
+          const worldRadius = mathMode
+            ? body.size * planetScale * (body.id === 'saturn' ? 2.22 : body.id === 'uranus' ? 1.73 : 1)
+            : body.id === 'sun'
+              ? scienceLayout.sunRadius
+              : Math.max(planetLayout?.radius ?? body.size, planetLayout?.ringOuterRadius ?? 0);
+          const radius = worldRadius * host.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance);
           projectedBodies.push({ id: body.id, x, y, radius });
         } else {
           label.style.opacity = '0';
@@ -1441,15 +1583,41 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         if (!label) return;
         label.style.left = `${position.x}px`;
         label.style.top = `${position.y}px`;
-        label.style.transform = 'translate(-50%, -50%)';
+        label.style.transform = `translate(-50%, -50%) scale(${mathMode || selectedRef.current ? 1 : 0.78})`;
         label.style.opacity = mathMode || !selectedRef.current || selectedRef.current === id ? '1' : '.26';
         label.style.pointerEvents = 'auto';
         label.tabIndex = 0;
       });
     };
     const clampPan = () => {
-      const boundary = selectedRef.current ? 7 : 16;
+      const selectedLayout = selectedRef.current === 'sun'
+        ? scienceLayout.sunRadius
+        : sciencePlanetsById.get(selectedRef.current ?? '')?.territoryRadius;
+      const boundary = mathMode
+        ? 0
+        : selectedLayout
+          ? selectedLayout * 2.2
+          : scienceSystemExtent * 0.12;
       if (panOffset.length() > boundary) panOffset.setLength(boundary);
+    };
+    const bodyAtPointer = () => {
+      let nearest: { id: string; screenDistance: number } | null = null;
+      const intersections = raycaster.intersectObjects(selectables, false);
+      for (const intersection of intersections) {
+        const id = intersection.object.userData.bodyId;
+        const root = typeof id === 'string' ? bodyRoots.get(id) : undefined;
+        if (!root) continue;
+        const projected = projectedPoint.copy(root.position).project(camera);
+        if (projected.z < -1 || projected.z > 1) continue;
+        const screenX = (projected.x * .5 + .5) * host.clientWidth;
+        const screenY = (-projected.y * .5 + .5) * host.clientHeight;
+        const screenDistance = Math.hypot(
+          (pointer.x * .5 + .5) * host.clientWidth - screenX,
+          (-pointer.y * .5 + .5) * host.clientHeight - screenY,
+        );
+        if (!nearest || screenDistance < nearest.screenDistance) nearest = { id, screenDistance };
+      }
+      return nearest?.id ?? null;
     };
     const panByScreen = (dx: number, dy: number) => {
       if (mathMode) return;
@@ -1486,9 +1654,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       if (!prior && !dragging && event.pointerType === 'mouse') {
         const rect = renderer.domElement.getBoundingClientRect();
         pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
-        raycaster.setFromCamera(pointer, camera);
-        const hit = raycaster.intersectObjects(selectables, false)[0]?.object;
-        hoveredId = hit?.userData.bodyId ? String(hit.userData.bodyId) : null;
+        hoveredId = bodyAtPointer();
       }
       if (activePointers.size >= 2) {
         const [a, b] = [...activePointers.values()];
@@ -1498,7 +1664,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         pinchCenter = center;
         if (pinchStart > 0) {
           if (!mathMode && selectedRef.current) selectedZoom = THREE.MathUtils.clamp(pinchSelectedZoom * pinchStart / Math.max(gap, 1), .42, 2.6);
-          else zoomDistance = THREE.MathUtils.clamp(pinchZoom * pinchStart / Math.max(gap, 1), 3.4, maxZoomDistance());
+          else zoomDistance = THREE.MathUtils.clamp(pinchZoom * pinchStart / Math.max(gap, 1), minimumZoomDistance, maxZoomDistance());
         }
         return;
       }
@@ -1529,14 +1695,13 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       }
       const rect = renderer.domElement.getBoundingClientRect();
       pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
-      raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(selectables, false)[0]?.object;
-      if (hit?.userData.bodyId) onSelectRef.current(String(hit.userData.bodyId));
+      const bodyId = bodyAtPointer();
+      if (bodyId) onSelectRef.current(bodyId);
     };
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
       if (!mathMode && selectedRef.current) selectedZoom = THREE.MathUtils.clamp(selectedZoom * Math.exp(event.deltaY * .001), .42, 2.6);
-      else zoomDistance = THREE.MathUtils.clamp(zoomDistance + event.deltaY * .015, 3.4, maxZoomDistance());
+      else zoomDistance = THREE.MathUtils.clamp(zoomDistance + event.deltaY * .015, minimumZoomDistance, maxZoomDistance());
     };
     const onLeave = () => { hoveredId = null; };
     const onContextMenu = (event: Event) => event.preventDefault();
@@ -1569,11 +1734,11 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
           const progress = Math.min(1, (slowProgress.get(spec.id) ?? 0) + delta / .85);
           slowProgress.set(spec.id, progress);
           const eased = progress * progress * (3 - 2 * progress);
-          root.position.copy(positionFor(spec, centuries).multiplyScalar(orbitScale)).lerp(frozen.get(spec.id)!, eased);
+        root.position.copy(scenePositionFor(spec, centuries, mathMode)).lerp(frozen.get(spec.id)!, eased);
         } else {
           frozen.delete(spec.id);
           slowProgress.delete(spec.id);
-          root.position.copy(positionFor(spec, centuries).multiplyScalar(orbitScale));
+        root.position.copy(scenePositionFor(spec, centuries, mathMode));
         }
         const spin = spinGroups.get(spec.id);
         if (spin && !reduced) {
@@ -1590,8 +1755,8 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         if (earthCloud) earthCloud.rotation.y += delta * .018;
         if (venusCloud) venusCloud.rotation.y += delta * .012;
       }
-      moonAssemblies.forEach(({ orbit, period }) => {
-        if (!reduced) orbit.rotation.y += (2 * Math.PI / period) * delta;
+      moonAssemblies.forEach(({ orbit, speed }) => {
+        if (!reduced) orbit.rotation.y += speed * delta;
       });
       const sunPulse = reduced ? 1.3 : 1.3 + Math.sin(time * .0012) * .08;
       if (!mathMode) sunMaterial.emissiveIntensity = selected === 'sun' ? sunPulse + .35 : sunPulse;
@@ -1602,14 +1767,16 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       desiredTarget.add(panOffset);
       target.lerp(desiredTarget, reduced ? .16 : .075);
       const focusBody = bodies.find((body) => body.id === selected);
-      const focusExtent = focusBody
-        ? focusBody.size * planetScale * (focusBody.id === 'saturn' ? 2.22 : focusBody.id === 'uranus' ? 1.73 : 1)
-        : 1;
+      const focusExtent = focusBody?.id === 'sun'
+        ? scienceLayout.sunRadius
+        : focusBody
+          ? sciencePlanetsById.get(focusBody.id)?.territoryRadius ?? focusBody.size * planetScale
+          : 1;
       const viewAspect = (host.clientWidth || window.innerWidth) / Math.max(host.clientHeight || window.innerHeight, 1);
       const focusDistance = focusBody
         ? mathMode
           ? Math.max(1.2, focusBody.size * planetScale * 4.8)
-          : Math.max(1.1, focusExtent / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.max(viewAspect, .3) * .34))
+          : focusExtent * 1.3 / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.min(viewAspect, 1))
         : overviewDistance;
       desiredDistance = focusBody ? focusDistance * (mathMode ? 1 : selectedZoom) : zoomDistance;
       spherical.theta = THREE.MathUtils.damp(spherical.theta, desiredTheta, 12, delta);
@@ -1623,6 +1790,26 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         lookAtTarget.copy(target).addScaledVector(screenUp, -spherical.radius * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * .24);
       } else lookAtTarget.copy(target);
       camera.lookAt(lookAtTarget);
+      if (!mathMode) {
+        const worldPerPixel = (2 * spherical.radius * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / Math.max(host.clientHeight, 1);
+        bodyRoots.forEach((root, id) => {
+          const hitArea = hitAreas.get(id);
+          if (!hitArea) return;
+          const bodyRadius = id === 'sun' ? scienceLayout.sunRadius : sciencePlanetsById.get(id)?.radius ?? 1;
+          const touchRadius = Math.max(bodyRadius * 1.6, worldPerPixel * 18);
+          hitArea.scale.setScalar(touchRadius);
+        });
+        moonOrbitLines.forEach(({ line, planetId, territoryRadius }) => {
+          const root = bodyRoots.get(planetId);
+          if (!root) return;
+          const distance = camera.position.distanceTo(root.position);
+          const nearDistance = territoryRadius * 8;
+          const farDistance = territoryRadius * 18;
+          const fade = selected === planetId ? 1 : 1 - THREE.MathUtils.smoothstep(distance, nearDistance, farDistance);
+          line.userData.opacity = fade * 0.19;
+          line.visible = fade > 0.015;
+        });
+      }
       meshes.forEach((mesh, id) => {
         const material = mesh.material as THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
         const opacity = !mathMode && selected && selected !== id ? .17 : 1;
@@ -1792,7 +1979,7 @@ export default function SciencePage() {
   };
   const bodyFacts = body ? t.science.factsByPlanet[body.id] : null;
   return (
-    <main className="science-page" dir={direction} lang={language} data-testid="page-science">
+    <main className={`science-page${selectedId ? ' has-selection' : ''}`} dir={direction} lang={language} data-testid="page-science">
        <ScienceScene selectedId={selectedId} onSelect={selectBody} />
       <div className="science-hint" data-testid="science-hint"><span className="science-hint-pulse" />{t.science.hint}</div>
       <div className="science-instruction" aria-hidden="true"><RotateCcw size={14} /> {t.science.drag}</div>
