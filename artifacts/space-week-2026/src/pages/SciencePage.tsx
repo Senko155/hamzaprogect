@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import * as THREE from 'three';
 import { ArrowDownLeft, ArrowDownRight, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
-import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor } from '@/components/solar-system-model';
+import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor, visualSemiMajorAxis } from '@/components/solar-system-model';
 import { makeMathPlanetTexture, makeSunSurfaceTexture } from '@/components/math-planet-textures';
 import { planetExtraTextureUrls, planetSurfaceTextureUrl } from '@/components/planet-texture-sources';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -49,6 +49,38 @@ const moonsByPlanet: Record<string, MoonSpec[]> = {
   ],
   neptune: [{ name: 'Triton', color: 0xc4d0d0, size: .12, orbit: 2.2, period: 22, phase: .9 }],
 };
+
+const scienceOrbitAxes: Record<string, number> = {
+  mercury: 6,
+  venus: 10.5,
+  earth: 15,
+  mars: 22,
+  jupiter: 33,
+  saturn: 54,
+  uranus: 82,
+  neptune: 112,
+};
+
+const scienceOrbitMultiplier = (spec: (typeof planets)[number]) =>
+  scienceOrbitAxes[spec.id] / visualSemiMajorAxis(spec.a);
+
+function sceneOrbitalPoint(spec: (typeof planets)[number], anomaly: number, mathMode: boolean) {
+  return orbitalPoint(spec, anomaly, 0).multiplyScalar(mathMode ? 1.28 : scienceOrbitMultiplier(spec));
+}
+
+function scenePositionFor(spec: (typeof planets)[number], centuries: number, mathMode: boolean) {
+  return positionFor(spec, centuries).multiplyScalar(mathMode ? 1.28 : scienceOrbitMultiplier(spec));
+}
+
+const scienceSystemExtent = Math.max(
+  ...planets.map((spec) => {
+    const bodyRadius = spec.size * 2.4;
+    const ringExtent = spec.id === 'saturn' ? 2.22 : spec.id === 'uranus' ? 1.73 : 1;
+    const moonExtent = Math.max(0, ...(moonsByPlanet[spec.id] ?? []).map((moon) => bodyRadius * (moon.orbit + moon.size)));
+    return scienceOrbitAxes[spec.id] * (1 + spec.e) + Math.max(bodyRadius * ringExtent, moonExtent);
+  }),
+  .78 * 2.4 * 1.48,
+) + 4;
 
 const axialTilt: Record<string, number> = {
   sun: 7.25, mercury: .034, venus: 177.4, earth: 23.44,
@@ -122,6 +154,25 @@ function makeBumpTexture(id: string) {
   }
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
+  return texture;
+}
+
+function makeEarthFallbackTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const context = canvas.getContext('2d');
+  if (context) {
+    const ocean = context.createLinearGradient(0, 0, 0, canvas.height);
+    ocean.addColorStop(0, '#123f68');
+    ocean.addColorStop(.5, '#17648b');
+    ocean.addColorStop(1, '#0d345b');
+    context.fillStyle = ocean;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.name = 'earth-blue-ocean-fallback';
   return texture;
 }
 
@@ -431,7 +482,7 @@ function drawScienceSaturnRings(context: CanvasRenderingContext2D, x: number, y:
   context.restore();
 }
 
-function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host: HTMLDivElement | null; selectedId: string | null; onSelect: (id: string) => void; mathMode: boolean }) {
+function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode, onEarthTextureStatus }: { host: HTMLDivElement | null; selectedId: string | null; onSelect: (id: string) => void; mathMode: boolean; onEarthTextureStatus: (available: boolean) => void }) {
   const { language } = useLanguage();
   const languageRef = useRef(language);
   languageRef.current = language;
@@ -466,7 +517,11 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
     const fallbackBaseImages = new Map<string, HTMLCanvasElement>();
     bodies.forEach(({ id }) => {
       if (mathMode) return;
-      const texture = id === 'sun' ? makeSunSurfaceTexture() : makeMathPlanetTexture(id);
+      const texture = id === 'sun'
+        ? makeSunSurfaceTexture()
+        : id === 'earth' && !mathMode
+          ? makeEarthFallbackTexture()
+          : makeMathPlanetTexture(id);
       fallbackTextureMaps.push(texture);
       planetTextures.set(id, texture.image as HTMLCanvasElement);
       fallbackBaseImages.set(id, texture.image as HTMLCanvasElement);
@@ -665,7 +720,6 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
       });
       context.globalAlpha = 1;
       const planetScale = mathMode ? 1.3 : 2.4;
-      const orbitScale = mathMode ? 1.28 : 1;
       const scale = Math.min(width / (mathMode ? 31 : 22), height / (mathMode ? 29 : 23)) * .87;
       const cameraScale = scale * zoom * cameraZoom;
       const centerX = width * centerXRatio;
@@ -686,7 +740,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         context.lineWidth = 1;
         context.beginPath();
         for (let step = 0; step <= 120; step++) {
-          const p = transform(orbitalPoint(spec, step / 120 * Math.PI * 2, 0).multiplyScalar(orbitScale));
+          const p = transform(sceneOrbitalPoint(spec, step / 120 * Math.PI * 2, mathMode));
           if (step === 0) context.moveTo(p.x, p.y);
           else context.lineTo(p.x, p.y);
         }
@@ -732,7 +786,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
       planets.forEach((spec) => {
         const worldPosition = !mathMode && frozenPlanetId === spec.id && selected === spec.id
           ? frozenPlanetPosition
-          : positionFor(spec, centuries).multiplyScalar(orbitScale);
+          : scenePositionFor(spec, centuries, mathMode);
         const point = transform(worldPosition);
         const radius = mathMode
           ? Math.max(5.5 + spec.size * scale * .36 * planetScale, spec.size * scale * .3 * planetScale) * zoom * cameraZoom
