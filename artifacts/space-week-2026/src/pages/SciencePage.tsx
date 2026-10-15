@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import * as THREE from 'three';
-import { ArrowDownLeft, ArrowDownRight, RotateCcw } from 'lucide-react';
+import { ArrowDownLeft, ArrowDownRight, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 import { canCreateWebGLContext } from '@/lib/webgl';
 import { CENTURY_MS, J2000_EPOCH, orbitalPoint, planets, positionFor } from '@/components/solar-system-model';
 import { makeMathPlanetTexture, makeSunSurfaceTexture } from '@/components/math-planet-textures';
+import { planetExtraTextureUrls, planetSurfaceTextureUrl } from '@/components/planet-texture-sources';
 import { useLanguage } from '../i18n/LanguageContext';
 import { videos } from '../videos.js';
 import type { Language } from '../i18n/LanguageContext';
@@ -19,6 +20,110 @@ const bodies: Body[] = [
   { id: 'sun', color: 0xffb96b, size: .78 },
   ...planets.map(({ id, color, size }) => ({ id: id as PlanetId, color, size })),
 ];
+
+type MoonSpec = { name: string; color: number; size: number; orbit: number; period: number; phase: number };
+const moonsByPlanet: Record<string, MoonSpec[]> = {
+  earth: [{ name: 'Moon', color: 0xd9dce2, size: .14, orbit: 2.1, period: 19, phase: .4 }],
+  mars: [
+    { name: 'Phobos', color: 0xaaa59b, size: .075, orbit: 1.8, period: 12, phase: .3 },
+    { name: 'Deimos', color: 0xc4b9a9, size: .055, orbit: 2.55, period: 17, phase: 2.2 },
+  ],
+  jupiter: [
+    { name: 'Io', color: 0xd8b967, size: .1, orbit: 1.55, period: 12, phase: .2 },
+    { name: 'Europa', color: 0xd8c9aa, size: .085, orbit: 2.12, period: 16, phase: 1.4 },
+    { name: 'Ganymede', color: 0x9a8972, size: .145, orbit: 2.72, period: 22, phase: 2.9 },
+    { name: 'Callisto', color: 0x766f68, size: .12, orbit: 3.36, period: 28, phase: 4.3 },
+  ],
+  saturn: [
+    { name: 'Titan', color: 0xd8a956, size: .14, orbit: 2.45, period: 24, phase: .6 },
+    { name: 'Rhea', color: 0xb6b2a9, size: .09, orbit: 3.02, period: 17, phase: 2.3 },
+    { name: 'Dione', color: 0xc8c4b9, size: .075, orbit: 3.6, period: 14, phase: 4.1 },
+    { name: 'Enceladus', color: 0xe1e3dd, size: .065, orbit: 4.18, period: 11, phase: 5.3 },
+  ],
+  uranus: [
+    { name: 'Miranda', color: 0xa8a59c, size: .055, orbit: 1.95, period: 12, phase: .4 },
+    { name: 'Ariel', color: 0xc2bfb7, size: .07, orbit: 2.43, period: 16, phase: 1.6 },
+    { name: 'Umbriel', color: 0x77756f, size: .075, orbit: 2.92, period: 20, phase: 2.8 },
+    { name: 'Titania', color: 0xaaa69d, size: .1, orbit: 3.42, period: 25, phase: 4.1 },
+    { name: 'Oberon', color: 0x908d84, size: .09, orbit: 3.94, period: 30, phase: 5.4 },
+  ],
+  neptune: [{ name: 'Triton', color: 0xc4d0d0, size: .12, orbit: 2.2, period: 22, phase: .9 }],
+};
+
+const axialTilt: Record<string, number> = {
+  sun: 7.25, mercury: .034, venus: 177.4, earth: 23.44,
+  mars: 25.19, jupiter: 3.13, saturn: 26.73, uranus: 97.77, neptune: 28.32,
+};
+const rotationPeriod: Record<string, number> = {
+  sun: 34, mercury: 33, venus: -38, earth: 30, mars: 31,
+  jupiter: 21, saturn: 25, uranus: -29, neptune: 27,
+};
+
+function makeAtmosphereMaterial(color: number, opacity: number) {
+  return new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexShader: `
+      varying vec3 vNormal;
+      varying vec3 vViewDirection;
+      void main() {
+        vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vViewDirection = normalize(-viewPosition.xyz);
+        gl_Position = projectionMatrix * viewPosition;
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 glowColor;
+      uniform float glowOpacity;
+      varying vec3 vNormal;
+      varying vec3 vViewDirection;
+      void main() {
+        float edge = pow(1.0 - max(dot(normalize(vNormal), normalize(vViewDirection)), 0.0), 3.4);
+        gl_FragColor = vec4(glowColor, edge * glowOpacity);
+      }
+    `,
+    uniforms: {
+      glowColor: { value: new THREE.Color(color) },
+      glowOpacity: { value: opacity },
+    },
+    side: THREE.FrontSide,
+  });
+}
+
+function makeBumpTexture(id: string) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 512;
+  const context = canvas.getContext('2d');
+  if (!context) return new THREE.CanvasTexture(canvas);
+  let seed = [...id].reduce((value, char) => (value * 33 + char.charCodeAt(0)) >>> 0, 17);
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+  context.fillStyle = '#707070';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  const count = id === 'mercury' ? 470 : 210;
+  for (let index = 0; index < count; index++) {
+    const x = random() * canvas.width;
+    const y = random() * canvas.height;
+    const radius = id === 'mercury' ? 3 + random() * 22 : 2 + random() * 12;
+    const crater = context.createRadialGradient(x - radius * .24, y - radius * .22, 1, x, y, radius);
+    crater.addColorStop(0, '#bcbcbc');
+    crater.addColorStop(.65, '#525252');
+    crater.addColorStop(.88, '#929292');
+    crater.addColorStop(1, '#666666');
+    context.fillStyle = crater;
+    context.beginPath();
+    context.ellipse(x, y, radius, radius * (.55 + random() * .25), random() * .2, 0, Math.PI * 2);
+    context.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  return texture;
+}
 
 type ProjectedLabel = { id: string; x: number; y: number; radius: number };
 type LabelSize = { width: number; height: number };
@@ -232,12 +337,16 @@ function drawSciencePlanet(
   id: string,
   sunX: number,
   sunY: number,
-  texture: HTMLCanvasElement | undefined,
+  texture: HTMLCanvasElement | HTMLImageElement | undefined,
+  rotation = 0,
 ) {
   const distance = Math.hypot(sunX - x, sunY - y) || 1;
   const lightX = (sunX - x) / distance;
   const lightY = (sunY - y) / distance;
   context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  context.translate(-x, -y);
   context.shadowBlur = 0;
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
@@ -245,6 +354,31 @@ function drawSciencePlanet(
   context.fillStyle = id === 'earth' ? '#1d5b79' : id === 'uranus' ? '#82d7d6' : id === 'neptune' ? '#2347b2' : '#bd8060';
   context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
   if (texture) context.drawImage(texture, x - radius, y - radius, radius * 2, radius * 2);
+  if (id === 'earth') {
+    context.strokeStyle = 'rgba(240,250,255,.48)';
+    context.lineWidth = Math.max(1, radius * .025);
+    for (let cloud = -1; cloud <= 1; cloud++) {
+      context.beginPath();
+      context.ellipse(x + cloud * radius * .16, y - cloud * radius * .12, radius * .8, radius * (.18 + Math.abs(cloud) * .035), -.28, .12, Math.PI * 1.72);
+      context.stroke();
+    }
+    const oceanGlint = context.createRadialGradient(x + lightX * radius * .28, y + lightY * radius * .28, 1, x + lightX * radius * .2, y + lightY * radius * .2, radius * .72);
+    oceanGlint.addColorStop(0, 'rgba(167,225,255,.2)');
+    oceanGlint.addColorStop(1, 'rgba(150,215,255,0)');
+    context.fillStyle = oceanGlint;
+    context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+  }
+  if (id === 'venus') {
+    context.globalAlpha = .4;
+    context.strokeStyle = 'rgba(255,220,161,.68)';
+    context.lineWidth = Math.max(1, radius * .045);
+    for (let band = -2; band <= 2; band++) {
+      context.beginPath();
+      context.ellipse(x, y + band * radius * .24, radius * .95, radius * .18, .08, 0, Math.PI * 2);
+      context.stroke();
+    }
+    context.globalAlpha = 1;
+  }
 
   const shade = context.createRadialGradient(
     x - lightX * radius * .3,
@@ -316,15 +450,29 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
     let raf = 0;
     let disposed = false;
     let angle = -.22;
+    let pitch = 0;
     let zoom = 1;
+    let panX = 0;
+    let panY = 0;
+    let dragMode: 'rotate' | 'pan' = 'rotate';
     let gesture: { id: number; x: number; y: number; moved: boolean } | null = null;
     const pointers = new Map<number, { x: number; y: number }>();
     let pinchDistance = 0;
     let pinchZoom = 1;
+    let pinchCenter: { x: number; y: number } | null = null;
     let lastPositions = new Map<string, { x: number; y: number; radius: number }>();
-    const planetTextures = new Map<string, THREE.CanvasTexture>(
-      mathMode ? [] : planets.map((planet) => [planet.id, makeMathPlanetTexture(planet.id)]),
-    );
+    const fallbackTextureMaps: THREE.CanvasTexture[] = [];
+    const planetTextures = new Map<string, HTMLCanvasElement | HTMLImageElement>();
+    const fallbackBaseImages = new Map<string, HTMLCanvasElement>();
+    bodies.forEach(({ id }) => {
+      if (mathMode) return;
+      const texture = id === 'sun' ? makeSunSurfaceTexture() : makeMathPlanetTexture(id);
+      fallbackTextureMaps.push(texture);
+      planetTextures.set(id, texture.image as HTMLCanvasElement);
+      fallbackBaseImages.set(id, texture.image as HTMLCanvasElement);
+    });
+    let loadedTextureId: string | null = null;
+    let fallbackTextureRequest = 0;
     const epoch = J2000_EPOCH;
     const viewFocus = new THREE.Vector3();
     const transitionFromFocus = new THREE.Vector3();
@@ -364,18 +512,26 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
       context.setTransform(ratio, 0, 0, ratio, 0, 0);
       labelSizes = measureLabels(labels);
     };
-    const rotate = (x: number, y: number) => ({
-      x: x * Math.cos(angle) - y * Math.sin(angle),
-      y: x * Math.sin(angle) + y * Math.cos(angle),
-    });
+    const rotate = (x: number, y: number, z: number) => {
+      const yawX = x * Math.cos(angle) - y * Math.sin(angle);
+      const yawY = x * Math.sin(angle) + y * Math.cos(angle);
+      return { x: yawX, y: yawY * Math.cos(pitch) - z * Math.sin(pitch), z: yawY * Math.sin(pitch) + z * Math.cos(pitch) };
+    };
+    const clampPan = () => {
+      panX = THREE.MathUtils.clamp(panX, -width * .42, width * .42);
+      panY = THREE.MathUtils.clamp(panY, -height * .36, height * .36);
+    };
+    const onContextMenu = (event: Event) => event.preventDefault();
     const down = (event: PointerEvent) => {
+      dragMode = !mathMode && (event.button === 2 || event.shiftKey) ? 'pan' : 'rotate';
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         pinchDistance = Math.hypot(a.x - b.x, a.y - b.y);
         pinchZoom = zoom;
+        pinchCenter = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       }
-      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: pointers.size > 1 };
+      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: pointers.size > 1 || dragMode === 'pan' };
       canvas.setPointerCapture(event.pointerId);
     };
     const move = (event: PointerEvent) => {
@@ -385,17 +541,34 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         const [a, b] = [...pointers.values()];
         const current = Math.hypot(a.x - b.x, a.y - b.y);
         if (pinchDistance) zoom = THREE.MathUtils.clamp(pinchZoom * current / pinchDistance, .55, 22);
+        const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        if (!mathMode && pinchCenter) {
+          panX += center.x - pinchCenter.x;
+          panY += center.y - pinchCenter.y;
+          clampPan();
+        }
+        pinchCenter = center;
         if (gesture) gesture.moved = true;
         return;
       }
       if (!previous || !gesture || gesture.id !== event.pointerId) return;
       if (Math.abs(event.clientX - gesture.x) + Math.abs(event.clientY - gesture.y) > 5) gesture.moved = true;
-      angle += (event.clientX - previous.x) * .006;
+      if (dragMode === 'pan') {
+        panX += event.clientX - previous.x;
+        panY += event.clientY - previous.y;
+        clampPan();
+      } else {
+        angle += (event.clientX - previous.x) * .006;
+        pitch = THREE.MathUtils.clamp(pitch + (event.clientY - previous.y) * .005, -.85, .85);
+      }
     };
     const up = (event: PointerEvent) => {
       const moved = gesture?.moved ?? false;
       pointers.delete(event.pointerId);
-      if (pointers.size < 2) pinchDistance = 0;
+      if (pointers.size < 2) {
+        pinchDistance = 0;
+        pinchCenter = null;
+      }
       if (gesture?.id === event.pointerId) gesture = null;
       if (moved || pointers.size) return;
       const rect = canvas.getBoundingClientRect();
@@ -411,9 +584,37 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
       event.preventDefault();
       zoom = THREE.MathUtils.clamp(zoom * Math.exp(-event.deltaY * .001), .55, 22);
     };
+    const requestFallbackTexture = (bodyId: string | null) => {
+      if (mathMode || bodyId === loadedTextureId) return;
+      if (loadedTextureId) {
+        const baseImage = fallbackBaseImages.get(loadedTextureId);
+        if (baseImage) planetTextures.set(loadedTextureId, baseImage);
+      }
+      loadedTextureId = bodyId;
+      const request = ++fallbackTextureRequest;
+      if (!bodyId) return;
+      const resolution = window.innerWidth >= 1000 ? '4k' : '2k';
+      const firstUrl = planetSurfaceTextureUrl(bodyId, resolution);
+      if (!firstUrl) return;
+      const loadImage = (url: string, canRetry: boolean) => {
+        const image = new Image();
+        image.crossOrigin = 'anonymous';
+        image.decoding = 'async';
+        image.onload = () => {
+          if (!disposed && request === fallbackTextureRequest) planetTextures.set(bodyId, image);
+        };
+        image.onerror = () => {
+          const fallback = planetSurfaceTextureUrl(bodyId, '2k');
+          if (canRetry && resolution === '4k' && fallback) loadImage(fallback, false);
+        };
+        image.src = url;
+      };
+      loadImage(firstUrl, true);
+    };
     const draw = (time: number) => {
       if (disposed || document.hidden) return;
       const selected = mathMode ? null : selectedRef.current;
+      requestFallbackTexture(selected);
       const centuries = (Date.now() - epoch) / CENTURY_MS;
       if (selected !== activeFocusId) {
         transitionFromFocus.copy(viewFocus);
@@ -440,10 +641,10 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
             ? Math.max(3.2, focusBody.size * Math.min(width / 22, height / 23) * .87 * .3)
             : 1;
         transitionToZoom = focusBody
-          ? THREE.MathUtils.clamp(.18 * Math.min(width, height) / (baseRadius * zoom), 3, 60)
+          ? THREE.MathUtils.clamp(.33 * width / (baseRadius * zoom), 2, 60)
           : 1;
         transitionToX = selected ? width < 760 ? .53 : .62 : .5;
-        transitionToY = selected ? width < 760 ? .39 : .49 : .52;
+        transitionToY = selected ? width < 760 ? .35 : .42 : .52;
         transitionStarted = time;
         activeFocusId = selected;
       }
@@ -463,18 +664,18 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         context.fill();
       });
       context.globalAlpha = 1;
-      const planetScale = 1.3;
+      const planetScale = mathMode ? 1.3 : 2.4;
       const orbitScale = mathMode ? 1.28 : 1;
       const scale = Math.min(width / (mathMode ? 31 : 22), height / (mathMode ? 29 : 23)) * .87;
       const cameraScale = scale * zoom * cameraZoom;
       const centerX = width * centerXRatio;
       const centerY = height * centerYRatio;
-      const rotatedFocus = rotate(viewFocus.x, viewFocus.y);
+      const rotatedFocus = rotate(viewFocus.x, viewFocus.y, viewFocus.z);
       const transform = (point: THREE.Vector3) => {
-        const p = rotate(point.x, point.y);
+        const p = rotate(point.x, point.y, point.z);
         return {
-          x: centerX + (p.x - rotatedFocus.x) * cameraScale,
-          y: centerY - (p.y - rotatedFocus.y) * cameraScale,
+          x: centerX + panX + (p.x - rotatedFocus.x) * cameraScale,
+          y: centerY + panY - (p.y - rotatedFocus.y) * cameraScale,
         };
       };
       const focusWeight = (id: string) => (transitionFromId === id ? 1 - ease : 0) + (transitionToId === id ? ease : 0);
@@ -512,6 +713,21 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
       context.beginPath();
       context.arc(sunPoint.x, sunPoint.y, sunRadius, 0, Math.PI * 2);
       context.fill();
+      if (!mathMode) {
+        const sunTexture = planetTextures.get('sun');
+        if (sunTexture) {
+          context.save();
+          context.beginPath();
+          context.arc(sunPoint.x, sunPoint.y, sunRadius, 0, Math.PI * 2);
+          context.clip();
+          context.translate(sunPoint.x, sunPoint.y);
+          context.rotate(time * 2 * Math.PI / 34000);
+          context.translate(-sunPoint.x, -sunPoint.y);
+          context.globalAlpha = opacityFor('sun') * .72;
+          context.drawImage(sunTexture, sunPoint.x - sunRadius, sunPoint.y - sunRadius, sunRadius * 2, sunRadius * 2);
+          context.restore();
+        }
+      }
       lastPositions = new Map([['sun', { ...sunPoint, radius: sunRadius }]]);
       planets.forEach((spec) => {
         const worldPosition = !mathMode && frozenPlanetId === spec.id && selected === spec.id
@@ -547,7 +763,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         context.arc(point.x, point.y, radius, 0, Math.PI * 2);
         context.fill();
         if (mathMode) drawMathPlanet(context, point.x, point.y, radius, spec.id, sunPoint.x, sunPoint.y);
-        else drawSciencePlanet(context, point.x, point.y, radius, spec.id, sunPoint.x, sunPoint.y, planetTextures.get(spec.id)?.image as HTMLCanvasElement | undefined);
+        else drawSciencePlanet(context, point.x, point.y, radius, spec.id, sunPoint.x, sunPoint.y, planetTextures.get(spec.id), time * 2 * Math.PI / (Math.abs(rotationPeriod[spec.id] ?? 30) * 1000) * Math.sign(rotationPeriod[spec.id] ?? 1));
         if (!mathMode && spec.id === 'saturn') drawScienceSaturnRings(context, point.x, point.y, radius, -.22 + angle, true);
         if (mathMode && spec.id === 'saturn') {
           context.save();
@@ -568,6 +784,42 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         context.shadowBlur = 0;
         lastPositions.set(spec.id, { ...point, radius });
       });
+      if (!mathMode) {
+        Object.entries(moonsByPlanet).forEach(([planetId, moonSpecs]) => {
+          const planetPoint = lastPositions.get(planetId);
+          if (!planetPoint) return;
+          moonSpecs.forEach((moonSpec, index) => {
+            const orbitRadius = planetPoint.radius * moonSpec.orbit;
+            const orbitAngle = time * 2 * Math.PI / (moonSpec.period * 1000) + moonSpec.phase;
+            const moonX = planetPoint.x + Math.cos(orbitAngle) * orbitRadius;
+            const moonY = planetPoint.y + Math.sin(orbitAngle) * orbitRadius * .72;
+            context.beginPath();
+            context.ellipse(planetPoint.x, planetPoint.y, orbitRadius, orbitRadius * .72, 0, 0, Math.PI * 2);
+            context.strokeStyle = 'rgba(191,213,242,.24)';
+            context.lineWidth = Math.max(1, planetPoint.radius * .012);
+            context.stroke();
+            const moonRadius = Math.max(1.8, planetPoint.radius * moonSpec.size);
+            const moonShade = context.createRadialGradient(moonX - moonRadius * .35, moonY - moonRadius * .35, .3, moonX, moonY, moonRadius);
+            const moonColor = `#${moonSpec.color.toString(16).padStart(6, '0')}`;
+            moonShade.addColorStop(0, '#f0eee7');
+            moonShade.addColorStop(.58, moonColor);
+            moonShade.addColorStop(1, '#33333b');
+            context.fillStyle = moonShade;
+            context.beginPath();
+            context.arc(moonX, moonY, moonRadius, 0, Math.PI * 2);
+            context.fill();
+            context.globalAlpha = .35;
+            context.fillStyle = '#37363a';
+            for (let crater = 0; crater < 3; crater++) {
+              const craterAngle = crater * 2.1 + index;
+              context.beginPath();
+              context.arc(moonX + Math.cos(craterAngle) * moonRadius * .42, moonY + Math.sin(craterAngle) * moonRadius * .3, Math.max(.4, moonRadius * .13), 0, Math.PI * 2);
+              context.fill();
+            }
+            context.globalAlpha = 1;
+          });
+        });
+      }
       context.globalAlpha = 1;
       const projectedBodies: ProjectedLabel[] = bodies.flatMap((body) => {
         const point = lastPositions.get(body.id);
@@ -600,6 +852,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
     canvas.addEventListener('wheel', wheel, { passive: false });
+    canvas.addEventListener('contextmenu', onContextMenu);
     window.addEventListener('resize', resize);
     document.addEventListener('visibilitychange', visibility);
     resize();
@@ -612,9 +865,11 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
       canvas.removeEventListener('pointerup', up);
       canvas.removeEventListener('pointercancel', up);
       canvas.removeEventListener('wheel', wheel);
+      canvas.removeEventListener('contextmenu', onContextMenu);
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', visibility);
-      planetTextures.forEach((texture) => texture.dispose());
+      fallbackTextureRequest++;
+      fallbackTextureMaps.forEach((texture) => texture.dispose());
     };
   }, [host]);
   return <canvas ref={canvasRef} className="science-fallback-canvas" aria-hidden="true" />;
@@ -653,8 +908,11 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     const target = new THREE.Vector3();
     const desiredTarget = new THREE.Vector3();
     const cameraOffset = new THREE.Vector3();
+    const lookAtTarget = new THREE.Vector3();
+    const cameraDirection = new THREE.Vector3();
+    const screenUp = new THREE.Vector3();
     const projectedPoint = new THREE.Vector3();
-    const planetScale = 1.3;
+    const planetScale = mathMode ? 1.3 : 2.4;
     const orbitScale = mathMode ? 1.28 : 1;
     const overviewDistanceForViewport = () => {
       const width = mathMode ? window.innerWidth : host.clientWidth || window.innerWidth;
@@ -670,10 +928,31 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     };
     let overviewDistance = overviewDistanceForViewport();
     const spherical = new THREE.Spherical(overviewDistance, 1.22, .48);
+    let desiredTheta = spherical.theta;
+    let desiredPhi = spherical.phi;
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     const selectables: THREE.Object3D[] = [];
     const meshes = new Map<string, THREE.Mesh>();
+    const bodyRoots = new Map<string, THREE.Group>();
+    const spinGroups = new Map<string, THREE.Group>();
+    const planetMaterials = new Map<string, THREE.MeshPhongMaterial>();
+    const basePlanetTextures = new Map<string, THREE.Texture>();
+    const atmospheres = new Map<string, THREE.Mesh>();
+    const specialLayers = new Map<string, THREE.Mesh>();
+    const moonAssemblies: Array<{ planetId: string; orbit: THREE.Group; period: number }> = [];
+    const moonMaterials = new Map<number, THREE.MeshStandardMaterial>();
+    const loadedSelectionTextures: THREE.Texture[] = [];
+    const sharedSphere = new THREE.SphereGeometry(1, 56, 40);
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.setCrossOrigin('anonymous');
+    const nightSunDirection = new THREE.Vector3();
+    let earthNightMaterial: THREE.MeshBasicMaterial | null = null;
+    let earthCloudMaterial: THREE.MeshLambertMaterial | null = null;
+    let venusCloudMaterial: THREE.MeshPhongMaterial | null = null;
+    let saturnRingMaterial: THREE.MeshBasicMaterial | null = null;
+    let selectedTextureBody: string | null = null;
+    let textureRequestId = 0;
     const frozen = new Map<string, THREE.Vector3>();
     const slowProgress = new Map<string, number>();
     const epoch = J2000_EPOCH;
@@ -681,14 +960,23 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     let zoomDistance = overviewDistance;
     const maxZoomDistance = () => mathMode ? 60 : Math.max(60, overviewDistance * 1.8);
     let dragging: { id: number; x: number; y: number; moved: boolean } | null = null;
+    let dragMode: 'rotate' | 'pan' = 'rotate';
     let gestureMoved = false;
     const activePointers = new Map<number, { x: number; y: number }>();
     let hoveredId: string | null = null;
     let pinchStart = 0;
     let pinchZoom = overviewDistance;
+    let pinchSelectedZoom = 1;
+    let selectedZoom = 1;
+    let pinchCenter: { x: number; y: number } | null = null;
+    const panOffset = new THREE.Vector3();
+    const panRight = new THREE.Vector3();
+    const panUp = new THREE.Vector3();
+    const panDelta = new THREE.Vector3();
     let raf = 0;
     let previous = 0;
     let disposed = false;
+    let activeSceneSelection: string | null = null;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
@@ -704,93 +992,131 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     let measuredLanguage = languageRef.current;
     const previousLabelPositions = new Map<string, { x: number; y: number }>();
 
-    scene.add(new THREE.AmbientLight(0x9cb3d4, mathMode ? .55 : .48));
-    scene.add(new THREE.PointLight(0xffd39a, 65, 65, 1.7));
+    scene.add(new THREE.AmbientLight(0x9cb3d4, mathMode ? .55 : .2));
+    const solarLight = new THREE.PointLight(0xffd39a, 65, 65, 1.7);
+    if (!mathMode) {
+      solarLight.castShadow = true;
+      solarLight.shadow.mapSize.set(512, 512);
+      solarLight.shadow.camera.near = .1;
+      solarLight.shadow.camera.far = 40;
+      solarLight.shadow.radius = 3;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
+    scene.add(solarLight);
     const sunRadius = .78 * planetScale;
-    const sun = new THREE.Mesh(
-      new THREE.SphereGeometry(sunRadius, 32, 24),
-      new THREE.MeshStandardMaterial({
-        map: mathMode ? undefined : makeSunSurfaceTexture(),
-        color: mathMode ? 0xffc17b : 0xffffff,
-        emissive: 0xff762b,
-        emissiveIntensity: mathMode ? 2.3 : 1.8,
-        roughness: .35,
-      }),
-    );
+    const sunRoot = new THREE.Group();
+    scene.add(sunRoot);
+    const sunMaterial = new THREE.MeshStandardMaterial({
+      map: mathMode ? undefined : makeSunSurfaceTexture(),
+      color: mathMode ? 0xffc17b : 0xffffff,
+      emissive: 0xff762b,
+      emissiveIntensity: mathMode ? 2.3 : 1.3,
+      roughness: .48,
+    });
+    const sun = new THREE.Mesh(sharedSphere, sunMaterial);
+    sun.scale.setScalar(sunRadius);
     sun.userData.bodyId = 'sun';
-    scene.add(sun);
+    sunRoot.add(sun);
+    sunRoot.rotation.x = THREE.MathUtils.degToRad(90 - axialTilt.sun);
+    bodyRoots.set('sun', sunRoot);
+    spinGroups.set('sun', sunRoot);
     meshes.set('sun', sun);
     selectables.push(sun);
     const sunHalo = new THREE.Mesh(
-      new THREE.SphereGeometry(sunRadius * (mathMode ? 1.26 : 1.42), 24, 16),
-      new THREE.MeshBasicMaterial({ color: 0xffa65d, transparent: true, opacity: mathMode ? .18 : .2, side: THREE.BackSide }),
+      sharedSphere,
+      new THREE.MeshBasicMaterial({ color: 0xffa65d, transparent: true, opacity: mathMode ? .18 : .15, side: THREE.BackSide }),
     );
-    scene.add(sunHalo);
+    sunHalo.scale.setScalar(sunRadius * (mathMode ? 1.26 : 1.18));
+    sunRoot.add(sunHalo);
     if (!mathMode) {
-      scene.add(new THREE.Mesh(
-        new THREE.SphereGeometry(sunRadius * 1.95, 24, 16),
-        new THREE.MeshBasicMaterial({ color: 0xff7c3a, transparent: true, opacity: .055, side: THREE.BackSide, depthWrite: false }),
-      ));
+      const corona = new THREE.Mesh(
+        sharedSphere,
+        new THREE.MeshBasicMaterial({ color: 0xff7c3a, transparent: true, opacity: .045, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+      );
+      corona.scale.setScalar(sunRadius * 1.48);
+      sunRoot.add(corona);
     }
 
+    const sunBaseTexture = sunMaterial.map;
+    if (sunBaseTexture) basePlanetTextures.set('sun', sunBaseTexture);
     planets.forEach((spec) => {
       const points: THREE.Vector3[] = [];
       for (let i = 0; i <= 128; i++) points.push(orbitalPoint(spec, i / 128 * Math.PI * 2, 0).multiplyScalar(orbitScale));
-      const orbit = new THREE.Line(
+      scene.add(new THREE.Line(
         new THREE.BufferGeometry().setFromPoints(points),
         new THREE.LineBasicMaterial({ color: spec.id === 'earth' ? 0x4ea8df : 0x8295bd, transparent: true, opacity: spec.id === 'earth' ? .28 : .14 }),
-      );
-      scene.add(orbit);
+      ));
       const planetRadius = spec.size * planetScale;
-      const planet = new THREE.Mesh(
-        new THREE.SphereGeometry(planetRadius, 28, 22),
-        new THREE.MeshStandardMaterial({
-          map: makeMathPlanetTexture(spec.id),
-          color: 0xffffff,
-          emissive: mathMode ? 0x000000 : spec.color,
-          emissiveIntensity: mathMode ? .06 : .02,
-          roughness: .82,
-          transparent: true,
-          opacity: 1,
-        }),
-      );
+      const root = new THREE.Group();
+      scene.add(root);
+      bodyRoots.set(spec.id, root);
+      const axialGroup = new THREE.Group();
+      axialGroup.rotation.x = mathMode
+        ? spec.id === 'uranus' ? THREE.MathUtils.degToRad(98) : 0
+        : THREE.MathUtils.degToRad(90 - (axialTilt[spec.id] ?? 0));
+      root.add(axialGroup);
+      const spinGroup = new THREE.Group();
+      axialGroup.add(spinGroup);
+      spinGroups.set(spec.id, spinGroup);
+
+      const map = makeMathPlanetTexture(spec.id);
+      basePlanetTextures.set(spec.id, map);
+      const bump = !mathMode && (spec.id === 'mercury' || spec.id === 'mars') ? makeBumpTexture(spec.id) : undefined;
+      const material = new THREE.MeshPhongMaterial({
+        map,
+        color: 0xffffff,
+        emissive: 0x000000,
+        specular: spec.id === 'earth' && !mathMode ? new THREE.Color(0x526a83) : new THREE.Color(0x171717),
+        shininess: spec.id === 'earth' && !mathMode ? 22 : 6,
+        bumpMap: bump,
+        bumpScale: spec.id === 'mercury' ? .075 : .03,
+        transparent: true,
+        opacity: 1,
+      });
+      const planet = new THREE.Mesh(sharedSphere, material);
+      planet.scale.setScalar(planetRadius);
+      planet.castShadow = !mathMode;
+      planet.receiveShadow = !mathMode;
       planet.userData.bodyId = spec.id;
+      spinGroup.add(planet);
+      meshes.set(spec.id, planet);
+      planetMaterials.set(spec.id, material);
+      if (bump) (material.userData as { retainedBump?: THREE.Texture }).retainedBump = bump;
+
+      if (!mathMode) {
+        const atmosphere = new THREE.Mesh(sharedSphere, makeAtmosphereMaterial(
+          spec.id === 'earth' ? 0x4caeff : spec.id === 'venus' ? 0xffad54 : spec.id === 'mars' ? 0xe77b55 : 0x73bbff,
+          spec.id === 'earth' ? .42 : spec.id === 'venus' ? .24 : .17,
+        ));
+        atmosphere.scale.setScalar(planetRadius * (spec.id === 'venus' ? 1.09 : 1.045));
+        axialGroup.add(atmosphere);
+        atmospheres.set(spec.id, atmosphere);
+      }
+
       if (spec.id === 'saturn') {
-        if (mathMode) {
-          [
-            { inner: 1.18, outer: 1.38, color: 0xeee0ba, opacity: .52 },
-            { inner: 1.41, outer: 1.72, color: 0xcbb787, opacity: .72 },
-            { inner: 1.76, outer: 1.88, color: 0x8d7959, opacity: .42 },
-            { inner: 1.94, outer: 2.18, color: 0xe6d5aa, opacity: .65 },
-          ].forEach(({ inner, outer, color, opacity }) => {
-            const ring = new THREE.Mesh(
-              new THREE.RingGeometry(inner, outer, 72),
-              new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
-            );
-            ring.scale.set(planetRadius, planetRadius, 1);
-            ring.rotation.x = Math.PI * .31;
-            planet.add(ring);
-          });
-        } else {
-          [
-            { inner: 1.12, outer: 1.3, color: 0x9f8b68, opacity: .4 },
-            { inner: 1.34, outer: 1.72, color: 0xd8c39a, opacity: .62 },
-            { inner: 1.78, outer: 1.86, color: 0x7d6a4c, opacity: .22 },
-            { inner: 1.92, outer: 2.18, color: 0xe7d6b1, opacity: .58 },
-          ].forEach(({ inner, outer, color, opacity }) => {
-            const ring = new THREE.Mesh(
-              new THREE.RingGeometry(inner, outer, 72),
-              new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
-            );
-            ring.scale.set(planetRadius, planetRadius, 1);
-            ring.rotation.x = Math.PI * .31;
-            planet.add(ring);
-          });
-        }
+        const ringBands = mathMode
+          ? [
+              { inner: 1.18, outer: 1.38, color: 0xeee0ba, opacity: .52 },
+              { inner: 1.41, outer: 1.72, color: 0xcbb787, opacity: .72 },
+              { inner: 1.76, outer: 1.88, color: 0x8d7959, opacity: .42 },
+              { inner: 1.94, outer: 2.18, color: 0xe6d5aa, opacity: .65 },
+            ]
+          : [{ inner: 1.08, outer: 2.22, color: 0xd9c7a0, opacity: .92 }];
+        ringBands.forEach(({ inner, outer, color, opacity }) => {
+          const ring = new THREE.Mesh(
+            new THREE.RingGeometry(inner, outer, 144),
+            new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false, alphaTest: mathMode ? 0 : .04 }),
+          );
+          if (!mathMode) saturnRingMaterial = ring.material as THREE.MeshBasicMaterial;
+          ring.scale.setScalar(planetRadius);
+          ring.rotation.x = mathMode ? Math.PI * .31 : -Math.PI / 2;
+          ring.castShadow = !mathMode;
+          ring.receiveShadow = false;
+          axialGroup.add(ring);
+        });
       }
       if (spec.id === 'uranus') {
-        // Uranus's spin axis is tipped almost sideways; its narrow rings share that axial tilt.
-        planet.rotation.x = THREE.MathUtils.degToRad(98);
         const uranusBands = [
           { inner: 1.2, outer: 1.29, color: 0x7899a4, opacity: .2 },
           { inner: 1.36, outer: 1.4, color: 0x9ab8c0, opacity: .13 },
@@ -799,24 +1125,210 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         ];
         uranusBands.forEach(({ inner, outer, color, opacity }) => {
           const ring = new THREE.Mesh(
-            new THREE.RingGeometry(inner, outer, 56),
+            new THREE.RingGeometry(inner, outer, 88),
             new THREE.MeshBasicMaterial({ color, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }),
           );
-          ring.scale.set(mathMode ? spec.size : planetRadius, mathMode ? spec.size : planetRadius, 1);
-          planet.add(ring);
+          ring.scale.setScalar(mathMode ? spec.size : planetRadius);
+          ring.rotation.x = mathMode ? 0 : -Math.PI / 2;
+          axialGroup.add(ring);
         });
       }
-      scene.add(planet);
-      meshes.set(spec.id, planet);
-      selectables.push(planet);
-      const hitArea = new THREE.Mesh(
-        new THREE.SphereGeometry(planetRadius * (mathMode ? 1.65 : 1.8), 12, 10),
-        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, colorWrite: false, depthWrite: false }),
-      );
+
+      if (!mathMode && spec.id === 'earth') {
+        earthCloudMaterial = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: .76, depthWrite: false });
+        const cloudLayer = new THREE.Mesh(sharedSphere, earthCloudMaterial);
+        cloudLayer.scale.setScalar(planetRadius * 1.012);
+        cloudLayer.visible = false;
+        axialGroup.add(cloudLayer);
+        specialLayers.set('earthCloud', cloudLayer);
+
+        earthNightMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffd08a,
+          transparent: true,
+          opacity: .72,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        earthNightMaterial.onBeforeCompile = (shader) => {
+          shader.uniforms.nightSunDirection = { value: nightSunDirection };
+          shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vEarthWorldNormal;')
+            .replace('#include <begin_vertex>', '#include <begin_vertex>\nvEarthWorldNormal = normalize(mat3(modelMatrix) * normal);');
+          shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>\nuniform vec3 nightSunDirection;\nvarying vec3 vEarthWorldNormal;')
+            .replace('#include <map_fragment>', '#include <map_fragment>\nfloat nightSide = 1.0 - smoothstep(-0.12, 0.12, dot(normalize(vEarthWorldNormal), normalize(nightSunDirection)));\ndiffuseColor.rgb *= nightSide;\ndiffuseColor.a *= nightSide;');
+        };
+        const nightLights = new THREE.Mesh(sharedSphere, earthNightMaterial);
+        nightLights.scale.setScalar(planetRadius * 1.006);
+        nightLights.visible = false;
+        spinGroup.add(nightLights);
+        specialLayers.set('earthNight', nightLights);
+      }
+      if (!mathMode && spec.id === 'venus') {
+        venusCloudMaterial = new THREE.MeshPhongMaterial({
+          color: 0xe7bd82,
+          transparent: true,
+          opacity: .56,
+          shininess: 3,
+          depthWrite: false,
+        });
+        const cloudShell = new THREE.Mesh(sharedSphere, venusCloudMaterial);
+        cloudShell.scale.setScalar(planetRadius * 1.018);
+        cloudShell.visible = false;
+        axialGroup.add(cloudShell);
+        specialLayers.set('venusCloud', cloudShell);
+      }
+
+      const hitArea = new THREE.Mesh(sharedSphere, new THREE.MeshBasicMaterial({
+        transparent: true,
+        opacity: 0,
+        colorWrite: false,
+        depthWrite: false,
+      }));
+      hitArea.scale.setScalar(planetRadius * (mathMode ? 1.65 : 1.6));
       hitArea.userData.bodyId = spec.id;
-      planet.add(hitArea);
-      selectables.push(hitArea);
+      root.add(hitArea);
+      selectables.push(planet, hitArea);
+
+      if (!mathMode) {
+        (moonsByPlanet[spec.id] ?? []).forEach((moonSpec) => {
+          let moonMaterial = moonMaterials.get(moonSpec.color);
+          if (!moonMaterial) {
+            moonMaterial = new THREE.MeshStandardMaterial({ color: moonSpec.color, roughness: .92, metalness: 0 });
+            moonMaterials.set(moonSpec.color, moonMaterial);
+          }
+          const orbitGroup = new THREE.Group();
+          const moonDistance = planetRadius * moonSpec.orbit;
+          const orbitPoints = Array.from({ length: 65 }, (_, index) => {
+            const angle = index / 64 * Math.PI * 2;
+            return new THREE.Vector3(Math.cos(angle) * moonDistance, 0, Math.sin(angle) * moonDistance);
+          });
+          orbitGroup.add(new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints(orbitPoints),
+            new THREE.LineBasicMaterial({ color: 0xc5d9f3, transparent: true, opacity: .24 }),
+          ));
+          const moon = new THREE.Mesh(sharedSphere, moonMaterial);
+          moon.scale.setScalar(planetRadius * moonSpec.size);
+          moon.position.x = moonDistance;
+          moon.castShadow = true;
+          moon.receiveShadow = true;
+          orbitGroup.add(moon);
+          axialGroup.add(orbitGroup);
+          moonAssemblies.push({ planetId: spec.id, orbit: orbitGroup, period: moonSpec.period });
+        });
+      }
     });
+    const loadExternalTexture = (url: string) => new Promise<THREE.Texture>((resolve, reject) => {
+      textureLoader.load(url, resolve, undefined, reject);
+    });
+    const clearSelectionTextures = () => {
+      if (selectedTextureBody === 'sun') sunMaterial.map = basePlanetTextures.get('sun') ?? null;
+      if (selectedTextureBody && selectedTextureBody !== 'sun') {
+        const material = planetMaterials.get(selectedTextureBody);
+        if (material) material.map = basePlanetTextures.get(selectedTextureBody) ?? null;
+      }
+      if (earthCloudMaterial) earthCloudMaterial.alphaMap = null;
+      if (earthNightMaterial) earthNightMaterial.map = null;
+      if (venusCloudMaterial) venusCloudMaterial.map = null;
+      if (saturnRingMaterial) saturnRingMaterial.map = null;
+      specialLayers.get('earthCloud') && (specialLayers.get('earthCloud')!.visible = false);
+      specialLayers.get('earthNight') && (specialLayers.get('earthNight')!.visible = false);
+      specialLayers.get('venusCloud') && (specialLayers.get('venusCloud')!.visible = false);
+      moonMaterials.forEach((material) => { material.map = null; });
+      loadedSelectionTextures.splice(0).forEach((texture) => texture.dispose());
+      sunMaterial.needsUpdate = true;
+      planetMaterials.forEach((material) => { material.needsUpdate = true; });
+      if (earthCloudMaterial) earthCloudMaterial.needsUpdate = true;
+      if (earthNightMaterial) earthNightMaterial.needsUpdate = true;
+      if (venusCloudMaterial) venusCloudMaterial.needsUpdate = true;
+      if (saturnRingMaterial) saturnRingMaterial.needsUpdate = true;
+      moonMaterials.forEach((material) => { material.needsUpdate = true; });
+    };
+    const setSelectedTexture = async (bodyId: string, requestId: number) => {
+      const resolution = window.innerWidth >= 1000 ? '4k' : '2k';
+      const surfaceUrl = planetSurfaceTextureUrl(bodyId, resolution);
+      if (!surfaceUrl) return;
+      let surface: THREE.Texture;
+      try {
+        surface = await loadExternalTexture(surfaceUrl);
+      } catch {
+        const fallback = planetSurfaceTextureUrl(bodyId, '2k');
+        if (!fallback || resolution === '2k') return;
+        try {
+          surface = await loadExternalTexture(fallback);
+        } catch {
+          return;
+        }
+      }
+      if (disposed || requestId !== textureRequestId) {
+        surface.dispose();
+        return;
+      }
+      surface.colorSpace = THREE.SRGBColorSpace;
+      surface.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      const surfaceMaterial = bodyId === 'sun' ? sunMaterial : planetMaterials.get(bodyId);
+      if (surfaceMaterial) {
+        surfaceMaterial.map = surface;
+        surfaceMaterial.needsUpdate = true;
+        loadedSelectionTextures.push(surface);
+      }
+      const loadExtra = async (url: string, assign: (texture: THREE.Texture) => void) => {
+        try {
+          const texture = await loadExternalTexture(url);
+          if (disposed || requestId !== textureRequestId) {
+            texture.dispose();
+            return;
+          }
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+          assign(texture);
+          loadedSelectionTextures.push(texture);
+        } catch {
+          // Retain the procedural texture when an optional map is unavailable.
+        }
+      };
+      if (bodyId === 'earth') {
+        if (earthCloudMaterial) void loadExtra(planetExtraTextureUrls.earthClouds, (texture) => {
+          earthCloudMaterial!.alphaMap = texture;
+          earthCloudMaterial!.needsUpdate = true;
+          const cloudLayer = specialLayers.get('earthCloud');
+          if (cloudLayer) cloudLayer.visible = true;
+        });
+        if (earthNightMaterial) void loadExtra(planetExtraTextureUrls.earthNight, (texture) => {
+          earthNightMaterial!.map = texture;
+          earthNightMaterial!.needsUpdate = true;
+          const nightLayer = specialLayers.get('earthNight');
+          if (nightLayer) nightLayer.visible = true;
+        });
+      } else if (bodyId === 'venus' && venusCloudMaterial) {
+        void loadExtra(planetExtraTextureUrls.venusClouds, (texture) => {
+          venusCloudMaterial!.map = texture;
+          venusCloudMaterial!.needsUpdate = true;
+          const cloudLayer = specialLayers.get('venusCloud');
+          if (cloudLayer) cloudLayer.visible = true;
+        });
+      } else if (bodyId === 'saturn' && saturnRingMaterial) {
+        void loadExtra(planetExtraTextureUrls.saturnRings, (texture) => {
+          saturnRingMaterial!.map = texture;
+          saturnRingMaterial!.needsUpdate = true;
+        });
+      }
+      if ((moonsByPlanet[bodyId] ?? []).length) {
+        void loadExtra(planetExtraTextureUrls.moon, (texture) => {
+          moonMaterials.forEach((material) => {
+            material.map = texture;
+            material.needsUpdate = true;
+          });
+        });
+      }
+    };
+    const requestSelectedTextures = (bodyId: string | null) => {
+      if (mathMode || bodyId === selectedTextureBody) return;
+      textureRequestId++;
+      clearSelectionTextures();
+      selectedTextureBody = bodyId;
+      if (bodyId) void setSelectedTexture(bodyId, textureRequestId);
+    };
     const starPositions = new Float32Array((window.innerWidth < 720 ? 420 : 900) * 3);
     for (let i = 0; i < starPositions.length; i += 3) {
       starPositions[i] = (Math.random() - .5) * 50;
@@ -848,14 +1360,15 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       const projectedBodies: ProjectedLabel[] = [];
       bodies.forEach((body) => {
         const label = labelElements.get(body.id);
-        const mesh = meshes.get(body.id);
-        if (!label || !mesh) return;
-        const screen = projectedPoint.copy(mesh.position).project(camera);
+        const root = bodyRoots.get(body.id);
+        if (!label || !root) return;
+        const screen = projectedPoint.copy(root.position).project(camera);
         const x = (screen.x * .5 + .5) * host.clientWidth;
         const y = (-screen.y * .5 + .5) * host.clientHeight;
         if (screen.z > -1 && screen.z < 1) {
-          const distance = camera.position.distanceTo(mesh.position);
-          const radius = body.size * planetScale * host.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance);
+          const distance = camera.position.distanceTo(root.position);
+          const ringExtent = body.id === 'saturn' ? 2.22 : body.id === 'uranus' ? 1.73 : 1;
+          const radius = body.size * planetScale * ringExtent * host.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * distance);
           projectedBodies.push({ id: body.id, x, y, radius });
         } else {
           label.style.opacity = '0';
@@ -880,15 +1393,35 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         label.tabIndex = 0;
       });
     };
+    const clampPan = () => {
+      const boundary = selectedRef.current ? 7 : 16;
+      if (panOffset.length() > boundary) panOffset.setLength(boundary);
+    };
+    const panByScreen = (dx: number, dy: number) => {
+      if (mathMode) return;
+      const distance = selectedRef.current ? spherical.radius : zoomDistance;
+      const unitsPerPixel = (2 * distance * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) / Math.max(host.clientHeight, 1);
+      panRight.setFromMatrixColumn(camera.matrix, 0);
+      panUp.setFromMatrixColumn(camera.matrix, 1);
+      panDelta.set(0, 0, 0)
+        .addScaledVector(panRight, -dx * unitsPerPixel)
+        .addScaledVector(panUp, dy * unitsPerPixel);
+      panOffset.add(panDelta);
+      clampPan();
+    };
     const onDown = (event: PointerEvent) => {
       if ((event.target as HTMLElement).closest('.science-body-label')) return;
       if (activePointers.size === 0) gestureMoved = false;
+      dragMode = !mathMode && (event.button === 2 || event.shiftKey) ? 'pan' : 'rotate';
+      if (dragMode === 'pan') gestureMoved = true;
       activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
       if (activePointers.size === 2) {
         gestureMoved = true;
         const [a, b] = [...activePointers.values()];
         pinchStart = Math.hypot(a.x - b.x, a.y - b.y);
         pinchZoom = zoomDistance;
+        pinchSelectedZoom = selectedZoom;
+        pinchCenter = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       }
       dragging = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false };
       renderer.domElement.setPointerCapture(event.pointerId);
@@ -906,7 +1439,13 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       if (activePointers.size >= 2) {
         const [a, b] = [...activePointers.values()];
         const gap = Math.hypot(a.x - b.x, a.y - b.y);
-        if (pinchStart > 0) zoomDistance = THREE.MathUtils.clamp(pinchZoom * pinchStart / Math.max(gap, 1), 3.4, maxZoomDistance());
+        const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        if (!mathMode && pinchCenter) panByScreen(center.x - pinchCenter.x, center.y - pinchCenter.y);
+        pinchCenter = center;
+        if (pinchStart > 0) {
+          if (!mathMode && selectedRef.current) selectedZoom = THREE.MathUtils.clamp(pinchSelectedZoom * pinchStart / Math.max(gap, 1), .42, 2.6);
+          else zoomDistance = THREE.MathUtils.clamp(pinchZoom * pinchStart / Math.max(gap, 1), 3.4, maxZoomDistance());
+        }
         return;
       }
       if (!dragging || dragging.id !== event.pointerId || !prior) return;
@@ -916,13 +1455,19 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
         dragging.moved = true;
         gestureMoved = true;
       }
-      spherical.theta -= dx * .005;
-      spherical.phi = THREE.MathUtils.clamp(spherical.phi + dy * .005, .18, Math.PI - .18);
+      if (dragMode === 'pan') panByScreen(dx, dy);
+      else {
+        desiredTheta -= dx * .005;
+        desiredPhi = THREE.MathUtils.clamp(desiredPhi + dy * .005, .12, Math.PI - .12);
+      }
     };
     const onUp = (event: PointerEvent) => {
       const wasDrag = gestureMoved || (dragging?.moved ?? false);
       activePointers.delete(event.pointerId);
-      if (activePointers.size < 2) pinchStart = 0;
+      if (activePointers.size < 2) {
+        pinchStart = 0;
+        pinchCenter = null;
+      }
       if (dragging?.id === event.pointerId) dragging = null;
       if (wasDrag) {
         if (activePointers.size === 0) gestureMoved = false;
@@ -936,57 +1481,104 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
     };
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      zoomDistance = THREE.MathUtils.clamp(zoomDistance + event.deltaY * .015, 3.4, maxZoomDistance());
+      if (!mathMode && selectedRef.current) selectedZoom = THREE.MathUtils.clamp(selectedZoom * Math.exp(event.deltaY * .001), .42, 2.6);
+      else zoomDistance = THREE.MathUtils.clamp(zoomDistance + event.deltaY * .015, 3.4, maxZoomDistance());
     };
     const onLeave = () => { hoveredId = null; };
+    const onContextMenu = (event: Event) => event.preventDefault();
     renderer.domElement.addEventListener('pointerdown', onDown);
     renderer.domElement.addEventListener('pointermove', onMove);
     renderer.domElement.addEventListener('pointerup', onUp);
     renderer.domElement.addEventListener('pointercancel', onUp);
     renderer.domElement.addEventListener('wheel', onWheel, { passive: false });
     renderer.domElement.addEventListener('pointerleave', onLeave);
+    renderer.domElement.addEventListener('contextmenu', onContextMenu);
 
     const frame = (time: number) => {
       if (disposed || document.hidden) return;
       const delta = previous ? Math.min((time - previous) / 1000, .08) : 0;
       previous = time;
       const centuries = (Date.now() - epoch) / CENTURY_MS;
+      const selected = mathMode ? null : selectedRef.current;
+      if (selected !== activeSceneSelection) {
+        activeSceneSelection = selected;
+        if (!mathMode) {
+          selectedZoom = 1;
+          panOffset.set(0, 0, 0);
+          requestSelectedTextures(selected);
+        }
+      }
       planets.forEach((spec) => {
-        const mesh = meshes.get(spec.id)!;
+        const root = bodyRoots.get(spec.id)!;
         if (!mathMode && selectedRef.current === spec.id) {
-          if (!frozen.has(spec.id)) frozen.set(spec.id, mesh.position.clone());
+          if (!frozen.has(spec.id)) frozen.set(spec.id, root.position.clone());
           const progress = Math.min(1, (slowProgress.get(spec.id) ?? 0) + delta / .85);
           slowProgress.set(spec.id, progress);
           const eased = progress * progress * (3 - 2 * progress);
-          mesh.position.copy(positionFor(spec, centuries).multiplyScalar(orbitScale)).lerp(frozen.get(spec.id)!, eased);
+          root.position.copy(positionFor(spec, centuries).multiplyScalar(orbitScale)).lerp(frozen.get(spec.id)!, eased);
         } else {
           frozen.delete(spec.id);
           slowProgress.delete(spec.id);
-          mesh.position.copy(positionFor(spec, centuries).multiplyScalar(orbitScale));
+          root.position.copy(positionFor(spec, centuries).multiplyScalar(orbitScale));
         }
-        if (spec.id !== 'uranus') mesh.rotation.y += reduced ? 0 : spec.rotation * delta;
+        const spin = spinGroups.get(spec.id);
+        if (spin && !reduced) {
+          spin.rotation.y += mathMode
+            ? spec.rotation * delta
+            : (2 * Math.PI / Math.abs(rotationPeriod[spec.id] ?? 30)) * Math.sign(rotationPeriod[spec.id] ?? 1) * delta;
+        }
       });
-      const selected = mathMode ? null : selectedRef.current;
+      const sunSpin = spinGroups.get('sun');
+      if (sunSpin && !mathMode && !reduced) sunSpin.rotation.y += (2 * Math.PI / rotationPeriod.sun) * delta;
+      if (!reduced) {
+        const earthCloud = specialLayers.get('earthCloud');
+        const venusCloud = specialLayers.get('venusCloud');
+        if (earthCloud) earthCloud.rotation.y += delta * .018;
+        if (venusCloud) venusCloud.rotation.y += delta * .012;
+      }
+      moonAssemblies.forEach(({ orbit, period }) => {
+        if (!reduced) orbit.rotation.y += (2 * Math.PI / period) * delta;
+      });
+      const sunPulse = reduced ? 1.3 : 1.3 + Math.sin(time * .0012) * .08;
+      if (!mathMode) sunMaterial.emissiveIntensity = selected === 'sun' ? sunPulse + .35 : sunPulse;
       if (selected) {
-        const selectedMesh = meshes.get(selected);
-        if (selectedMesh) desiredTarget.copy(selectedMesh.position);
+        const selectedRoot = bodyRoots.get(selected);
+        if (selectedRoot) desiredTarget.copy(selectedRoot.position);
       } else desiredTarget.set(0, 0, 0);
+      desiredTarget.add(panOffset);
       target.lerp(desiredTarget, reduced ? .16 : .075);
       const focusBody = bodies.find((body) => body.id === selected);
-      const focusDistance = focusBody ? Math.max(1.2, focusBody.size * (mathMode ? planetScale : 1) * 4.8) : overviewDistance;
-      desiredDistance = focusBody ? focusDistance : zoomDistance;
+      const focusExtent = focusBody
+        ? focusBody.size * planetScale * (focusBody.id === 'saturn' ? 2.22 : focusBody.id === 'uranus' ? 1.73 : 1)
+        : 1;
+      const viewAspect = (host.clientWidth || window.innerWidth) / Math.max(host.clientHeight || window.innerHeight, 1);
+      const focusDistance = focusBody
+        ? mathMode
+          ? Math.max(1.2, focusBody.size * planetScale * 4.8)
+          : Math.max(1.1, focusExtent / (Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * Math.max(viewAspect, .3) * .34))
+        : overviewDistance;
+      desiredDistance = focusBody ? focusDistance * (mathMode ? 1 : selectedZoom) : zoomDistance;
+      spherical.theta = THREE.MathUtils.damp(spherical.theta, desiredTheta, 12, delta);
+      spherical.phi = THREE.MathUtils.damp(spherical.phi, desiredPhi, 12, delta);
       spherical.radius = THREE.MathUtils.lerp(spherical.radius, desiredDistance, reduced ? .18 : .065);
       cameraOffset.setFromSpherical(spherical);
       camera.position.copy(target).add(cameraOffset);
-      camera.lookAt(target);
+      if (selected && !mathMode) {
+        cameraDirection.copy(target).sub(camera.position).normalize();
+        screenUp.set(0, 1, 0).projectOnPlane(cameraDirection).normalize();
+        lookAtTarget.copy(target).addScaledVector(screenUp, -spherical.radius * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * .24);
+      } else lookAtTarget.copy(target);
+      camera.lookAt(lookAtTarget);
       meshes.forEach((mesh, id) => {
-        const material = mesh.material as THREE.MeshStandardMaterial;
+        const material = mesh.material as THREE.MeshPhongMaterial | THREE.MeshStandardMaterial;
         const opacity = !mathMode && selected && selected !== id ? .17 : 1;
         material.opacity = THREE.MathUtils.lerp(material.opacity, opacity, .07);
-        material.emissiveIntensity = id === 'sun'
-          ? selectedRef.current === id ? 2.35 : hoveredId === id ? 2.05 : mathMode ? 2.1 : 1.8
-          : mathMode && selectedRef.current === id ? .18 : !mathMode && selected === id ? .48 : hoveredId === id ? .32 : .06;
+        if (material instanceof THREE.MeshPhongMaterial) {
+          material.emissive.setHex(selected === id ? 0x182331 : hoveredId === id ? 0x101820 : 0x000000);
+          material.emissiveIntensity = selected === id ? .5 : hoveredId === id ? .3 : 0;
+        }
       });
+      if (selected === 'earth') nightSunDirection.copy(bodyRoots.get('earth')!.position).multiplyScalar(-1).normalize();
       if (!reduced) starField.rotation.z = Math.sin(time * .00004) * .004;
       renderer.render(scene, camera);
       projectLabels();
@@ -1010,11 +1602,19 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false, showMathL
       renderer.domElement.removeEventListener('pointercancel', onUp);
       renderer.domElement.removeEventListener('wheel', onWheel);
       renderer.domElement.removeEventListener('pointerleave', onLeave);
+      renderer.domElement.removeEventListener('contextmenu', onContextMenu);
+      textureRequestId++;
+      clearSelectionTextures();
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points) {
           object.geometry.dispose();
           const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => { if ('map' in material && material.map) material.map.dispose(); material.dispose(); });
+          materials.forEach((material) => {
+            if ('map' in material && material.map) material.map.dispose();
+            if ('alphaMap' in material && material.alphaMap) material.alphaMap.dispose();
+            if ('bumpMap' in material && material.bumpMap) material.bumpMap.dispose();
+            material.dispose();
+          });
         }
       });
       renderer.dispose();
@@ -1070,12 +1670,70 @@ export default function SciencePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const body = useMemo(() => bodies.find((item) => item.id === selectedId) ?? null, [selectedId]);
   const [videoLanguageOverride, setVideoLanguageOverride] = useState<{ planetId: PlanetId; language: Language } | null>(null);
+  const [playingSoundId, setPlayingSoundId] = useState<PlanetId | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const planetAudio: Record<PlanetId, string> = {
+    sun: 'sun.mp3',
+    mercury: 'mercury.mp3',
+    venus: 'venus.mp3',
+    earth: 'earth.mp3',
+    mars: 'mars.mp3',
+    jupiter: 'jupiter.mp3',
+    saturn: 'saturn.mp3',
+    uranus: 'uranus.mp3',
+    neptune: 'neptune.mp3',
+  };
+  const stopPlanetSound = () => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.removeAttribute('src');
+      audio.load();
+    }
+    setPlayingSoundId(null);
+  };
+  useEffect(() => {
+    const audio = new Audio();
+    audio.preload = 'none';
+    const ended = () => setPlayingSoundId(null);
+    audio.addEventListener('ended', ended);
+    audioRef.current = audio;
+    return () => {
+      audio.pause();
+      audio.removeEventListener('ended', ended);
+      audio.removeAttribute('src');
+      audio.load();
+      audioRef.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    stopPlanetSound();
+  }, [language]);
+  useEffect(() => {
+    if (!selectedId) stopPlanetSound();
+  }, [selectedId]);
   const videoLanguage = videoLanguageOverride && body && videoLanguageOverride.planetId === body.id
     ? videoLanguageOverride.language
     : language;
   const videoUrl = body ? videos[body.id].science[videoLanguage] : '';
+  const togglePlanetSound = () => {
+    if (!body) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (playingSoundId === body.id) {
+      stopPlanetSound();
+      return;
+    }
+    stopPlanetSound();
+    audio.src = new URL(`${import.meta.env.BASE_URL}audio/${planetAudio[body.id]}`, window.location.origin).href;
+    void audio.play().then(() => setPlayingSoundId(body.id)).catch(() => setPlayingSoundId(null));
+  };
   const selectBody = (id: string) => {
-    if (id !== selectedId) setVideoLanguageOverride(null);
+    if (id !== selectedId) {
+      setVideoLanguageOverride(null);
+      stopPlanetSound();
+    }
     setSelectedId(id);
   };
   const bodyFacts = body ? t.science.factsByPlanet[body.id] : null;
@@ -1095,9 +1753,21 @@ export default function SciencePage() {
         <section className="science-detail" aria-labelledby="science-body-title" data-testid="science-detail-panel">
           <div className="science-detail-heading">
             <h1 id="science-body-title" data-testid="science-body-title">{t.science.names[body.id]}</h1>
-             <button type="button" className="science-return" onClick={() => { setVideoLanguageOverride(null); setSelectedId(null); }} data-testid="button-science-return">
-              {direction === 'rtl' ? <ArrowDownLeft size={15} /> : <ArrowDownRight size={15} />} {t.science.back}
-            </button>
+              <div className="science-detail-actions">
+                <button
+                  type="button"
+                  className="science-sound-toggle"
+                  onClick={togglePlanetSound}
+                  aria-label={playingSoundId === body.id ? t.science.stopSound : t.science.playSound}
+                  aria-pressed={playingSoundId === body.id}
+                  data-testid="button-planet-sound"
+                >
+                  {playingSoundId === body.id ? <Volume2 size={18} /> : <VolumeX size={18} />}
+                </button>
+                <button type="button" className="science-return" onClick={() => { stopPlanetSound(); setVideoLanguageOverride(null); setSelectedId(null); }} data-testid="button-science-return">
+                  {direction === 'rtl' ? <ArrowDownLeft size={15} /> : <ArrowDownRight size={15} />} {t.science.back}
+                </button>
+              </div>
           </div>
           <VideoLanguageToggle
             language={videoLanguage}
