@@ -128,7 +128,7 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
   const [selectedId, setSelectedId] = useState<(typeof planetIds)[number]>('sun');
   const [videoLanguageOverride, setVideoLanguageOverride] = useState<{ planetId: (typeof planetIds)[number]; language: Language } | null>(null);
   const videoLanguage = videoLanguageOverride?.planetId === selectedId ? videoLanguageOverride.language : language;
-  const [videoOpen, setVideoOpen] = useState(true);
+  const [videoOpen, setVideoOpen] = useState(false);
   const returnHome = () => onBackHome ? onBackHome() : setLocation('/');
   const selectedName = t.science.names[selectedId];
   const videoUrl = videos[selectedId].math[videoLanguage] || videos[selectedId].science[videoLanguage];
@@ -173,16 +173,19 @@ export default function MathPage({ onBackHome }: { onBackHome?: () => void } = {
             arabicLabel={t.video.arabic}
             englishLabel={t.video.english}
           />
-          <div className="math-video-frame" data-testid="video-math-frame">
-            {videoOpen && <LocalizedVideo
-              key={`${selectedId}-${videoLanguage}-${videoUrl}`}
-              raw={videoUrl}
-              title={t.math.videoTitle(selectedName)}
-              emptyLabel={t.math.emptyVideo}
-              placeholderClassName="math-video-placeholder"
-              mediaClassName="math-video-media"
-              testId="video-math-player"
-            />}
+          <div className={`math-video-frame${videoOpen ? '' : ' is-idle'}`} data-testid="video-math-frame">
+            {videoOpen ? <LocalizedVideo
+                key={`${selectedId}-${videoLanguage}-${videoUrl}`}
+                raw={videoUrl}
+                title={t.math.videoTitle(selectedName)}
+                emptyLabel={t.math.emptyVideo}
+                placeholderClassName="math-video-placeholder"
+                mediaClassName="math-video-media"
+                testId="video-math-player"
+              />
+              : <button className="math-scene-prompt" type="button" onClick={() => setVideoOpen(true)} data-testid="button-math-open-selected-video">
+                  {t.math.planetPicker}
+                </button>}
           </div>
           <p className="math-video-facts" data-testid="math-video-facts">
             <span>{t.math.factDistance(bodyFacts.distance)}</span>

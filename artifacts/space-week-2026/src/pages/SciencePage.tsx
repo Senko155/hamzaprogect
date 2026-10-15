@@ -39,9 +39,20 @@ function placeProjectedLabels(
   height: number,
   selectedId: string | null,
   preferAbove: boolean,
+  host: HTMLDivElement,
 ) {
   const placements = new Map<string, { x: number; y: number }>();
   const occupied: Array<{ x: number; y: number; width: number; height: number }> = [];
+  const hostRect = host.getBoundingClientRect();
+  const reserved = preferAbove
+    ? Array.from(document.querySelectorAll(
+        '.math-page .math-title, .math-page .math-scene-prompt, .math-page .video-language-row, .math-page .math-video-facts, .math-page .math-planet-picker, .math-page .math-back',
+      )).map((element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.left - hostRect.left + rect.width / 2, y: rect.top - hostRect.top + rect.height / 2, width: rect.width, height: rect.height };
+      })
+    : [];
+  const rings = preferAbove ? [1, 1.5, 2.2, 3.1, 4.2, 5.4] : [1, 1.55, 2.15, 2.85];
   const ordered = [...bodiesToPlace].sort((a, b) => {
     if (a.id === selectedId) return -1;
     if (b.id === selectedId) return 1;
@@ -56,11 +67,12 @@ function placeProjectedLabels(
     }
     const old = previous.get(body.id);
     let best: { x: number; y: number; score: number } | null = null;
-    for (const ring of [1, 1.55, 2.15, 2.85, 3.6]) {
-      for (let index = 0; index < 8; index++) {
-        const angle = preferAbove
-          ? [-Math.PI / 2, -Math.PI / 3, -2 * Math.PI / 3, -Math.PI / 4, -3 * Math.PI / 4, 0, Math.PI, Math.PI / 2][index]
-          : -Math.PI / 2 + index * Math.PI / 4;
+    const angles = preferAbove
+      ? [-Math.PI / 2, -Math.PI / 3, -Math.PI / 6, 0, Math.PI / 6, Math.PI / 3, Math.PI / 2, 2 * Math.PI / 3, 5 * Math.PI / 6, Math.PI, -5 * Math.PI / 6, -2 * Math.PI / 3]
+      : Array.from({ length: 8 }, (_, index) => -Math.PI / 2 + index * Math.PI / 4);
+    for (const ring of rings) {
+      for (let index = 0; index < angles.length; index++) {
+        const angle = angles[index];
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
         const extent = Math.abs(cos) * size.width / 2 + Math.abs(sin) * size.height / 2;
@@ -71,11 +83,18 @@ function placeProjectedLabels(
         y = THREE.MathUtils.clamp(y, size.height / 2 + 7, Math.max(size.height / 2 + 7, height - size.height / 2 - 7));
         const rect = { x, y, width: size.width, height: size.height };
         let overlapPenalty = 0;
-        occupied.forEach((other) => {
+        const overlaps = (other: { x: number; y: number; width: number; height: number }) => {
           const overlapX = Math.max(0, (rect.width + other.width) / 2 + 5 - Math.abs(rect.x - other.x));
           const overlapY = Math.max(0, (rect.height + other.height) / 2 + 5 - Math.abs(rect.y - other.y));
-          overlapPenalty += overlapX * overlapY;
+          return overlapX * overlapY;
+        };
+        let blockedByControl = false;
+        reserved.forEach((other) => {
+          const area = overlaps(other);
+          if (area > 0) blockedByControl = true;
         });
+        if (blockedByControl) continue;
+        occupied.forEach((other) => { overlapPenalty += overlaps(other); });
         const oldPenalty = old ? Math.hypot(x - old.x, y - old.y) * .22 : 0;
         const distancePenalty = Math.hypot(x - body.x, y - body.y) + oldPenalty;
         const score = distancePenalty + overlapPenalty * 1000;
@@ -83,7 +102,12 @@ function placeProjectedLabels(
       }
       if (best && best.score < 1200) break;
     }
-    if (!best) return;
+    if (!best) {
+      label.style.opacity = '0';
+      label.style.pointerEvents = 'none';
+      label.tabIndex = -1;
+      return;
+    }
     const position = { x: best.x, y: best.y };
     previous.set(body.id, position);
     placements.set(body.id, position);
@@ -98,6 +122,8 @@ function drawMathPlanet(
   y: number,
   radius: number,
   id: string,
+  sunX: number,
+  sunY: number,
 ) {
   const colors: Record<string, [string, string, string]> = {
     mercury: ['#b8b3ab', '#77716e', '#3b3b43'],
@@ -112,11 +138,23 @@ function drawMathPlanet(
   const palette = colors[id];
   if (!palette) return;
   const [light, mid, dark] = palette;
+  const sunDistance = Math.hypot(sunX - x, sunY - y) || 1;
+  const lightX = (sunX - x) / sunDistance;
+  const lightY = (sunY - y) / sunDistance;
   context.save();
+  context.shadowBlur = 0;
+  context.shadowColor = 'transparent';
   context.beginPath();
   context.arc(x, y, radius, 0, Math.PI * 2);
   context.clip();
-  const face = context.createRadialGradient(x - radius * .34, y - radius * .38, radius * .05, x, y, radius * 1.15);
+  const face = context.createRadialGradient(
+    x + lightX * radius * .4,
+    y + lightY * radius * .4,
+    radius * .05,
+    x - lightX * radius * .15,
+    y - lightY * radius * .15,
+    radius * 1.2,
+  );
   face.addColorStop(0, light);
   face.addColorStop(.48, mid);
   face.addColorStop(1, dark);
@@ -169,7 +207,14 @@ function drawMathPlanet(
       context.stroke();
     }
   }
-  const shadow = context.createRadialGradient(x - radius * .15, y, radius * .2, x + radius * .48, y, radius * 1.1);
+  const shadow = context.createRadialGradient(
+    x + lightX * radius * .15,
+    y + lightY * radius * .15,
+    radius * .12,
+    x - lightX * radius * .35,
+    y - lightY * radius * .35,
+    radius * 1.1,
+  );
   shadow.addColorStop(0, 'rgba(0,0,0,0)');
   shadow.addColorStop(.6, 'rgba(0,0,0,.12)');
   shadow.addColorStop(1, 'rgba(0,0,0,.72)');
@@ -398,7 +443,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
           : positionFor(spec, centuries).multiplyScalar(orbitScale);
         const point = transform(worldPosition);
         const radius = mathMode
-          ? Math.max(4.2 + spec.size * scale * .18 * planetScale, spec.size * scale * .3 * planetScale) * zoom * cameraZoom
+          ? Math.max(5.5 + spec.size * scale * .36 * planetScale, spec.size * scale * .3 * planetScale) * zoom * cameraZoom
           : Math.max(3.2, spec.size * scale * .3) * zoom * cameraZoom;
         context.globalAlpha = opacityFor(spec.id);
         if (spec.id === 'saturn') {
@@ -423,7 +468,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         context.beginPath();
         context.arc(point.x, point.y, radius, 0, Math.PI * 2);
         context.fill();
-        if (mathMode) drawMathPlanet(context, point.x, point.y, radius, spec.id);
+        if (mathMode) drawMathPlanet(context, point.x, point.y, radius, spec.id, sunPoint.x, sunPoint.y);
         if (mathMode && spec.id === 'saturn') {
           context.save();
           context.translate(point.x, point.y);
@@ -453,7 +498,7 @@ function ScienceCanvasFallback({ host, selectedId, onSelect, mathMode }: { host:
         previousLabelPositions.clear();
         measuredLanguage = languageRef.current;
       }
-      const placements = placeProjectedLabels(projectedBodies, labels, labelSizes, previousLabelPositions, width, height, selected, mathMode);
+      const placements = placeProjectedLabels(projectedBodies, labels, labelSizes, previousLabelPositions, width, height, selected, mathMode, host);
       placements.forEach((position, id) => {
         const label = labels.get(id);
         if (!label) return;
@@ -703,7 +748,7 @@ export function ScienceScene({ selectedId, onSelect, mathMode = false }: { selec
         previousLabelPositions.clear();
         measuredLanguage = languageRef.current;
       }
-      const placements = placeProjectedLabels(projectedBodies, labelElements, labelSizes, previousLabelPositions, host.clientWidth, host.clientHeight, selectedRef.current, mathMode);
+      const placements = placeProjectedLabels(projectedBodies, labelElements, labelSizes, previousLabelPositions, host.clientWidth, host.clientHeight, selectedRef.current, mathMode, host);
       placements.forEach((position, id) => {
         const label = labelElements.get(id);
         if (!label) return;

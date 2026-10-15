@@ -1592,7 +1592,7 @@ button { font: inherit; }
 
 /* Math reuses the interactive solar scene while keeping its controls above it. */
 .math-planet-scene {
-  z-index: auto;
+  z-index: 3;
   overflow: visible;
 }
 .math-planet-scene .science-webgl,
@@ -1622,12 +1622,35 @@ button { font: inherit; }
   z-index: 5;
 }
 .math-page .math-content-card {
-  background: linear-gradient(145deg, rgba(13, 26, 29, .5), rgba(4, 9, 13, .44));
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: linear-gradient(145deg, rgba(13, 26, 29, .27), rgba(4, 9, 13, .23));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .math-page .math-video-frame {
   background: rgba(5, 10, 9, .42);
+}
+.math-page .math-video-frame.is-idle {
+  background: rgba(5, 10, 9, .13);
+  box-shadow: 0 0 0 1px rgba(209, 189, 119, .08), 0 0 50px rgba(65, 194, 177, .08), inset 0 0 36px rgba(87, 196, 164, .04);
+}
+.math-scene-prompt {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: rgba(221, 242, 234, .82);
+  font: 12px var(--app-font-sans);
+  text-shadow: 0 1px 8px #000;
+  cursor: pointer;
+}
+.math-scene-prompt:hover,
+.math-scene-prompt:focus-visible {
+  color: #f2fff9;
+  outline: none;
+  background: rgba(8, 24, 20, .08);
 }
 
 @media (max-width: 760px) {
